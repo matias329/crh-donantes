@@ -29,7 +29,7 @@ def is_postgres() -> bool:
 
 
 def normalize_database_url(url: str) -> str:
-    # Render a veces da postgres:// y psycopg2 prefiere postgresql://
+    # Render a veces entrega postgres:// y psycopg acepta postgresql://
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql://", 1)
     return url
@@ -38,15 +38,15 @@ def normalize_database_url(url: str) -> str:
 def get_db_connection():
     """
     Devuelve una conexión:
-    - PostgreSQL si existe DATABASE_URL
+    - PostgreSQL si existe DATABASE_URL (Render)
     - SQLite si no existe (modo local)
     """
     if is_postgres():
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
+        import psycopg
+        from psycopg.rows import dict_row
 
         db_url = normalize_database_url(os.environ["DATABASE_URL"])
-        conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        conn = psycopg.connect(db_url, row_factory=dict_row)
         return conn
 
     conn = sqlite3.connect(DB_PATH)
@@ -62,10 +62,9 @@ def ph() -> str:
 def fetch_all(sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
     conn = get_db_connection()
     if is_postgres():
-        cur = conn.cursor()
-        cur.execute(sql, tuple(params))
-        rows = cur.fetchall()
-        cur.close()
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall()
         conn.close()
         return [dict(r) for r in rows]
     else:
@@ -77,10 +76,9 @@ def fetch_all(sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
 def fetch_one(sql: str, params: Iterable[Any] = ()) -> Optional[dict[str, Any]]:
     conn = get_db_connection()
     if is_postgres():
-        cur = conn.cursor()
-        cur.execute(sql, tuple(params))
-        row = cur.fetchone()
-        cur.close()
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
         conn.close()
         return dict(row) if row else None
     else:
@@ -92,10 +90,9 @@ def fetch_one(sql: str, params: Iterable[Any] = ()) -> Optional[dict[str, Any]]:
 def execute(sql: str, params: Iterable[Any] = ()) -> None:
     conn = get_db_connection()
     if is_postgres():
-        cur = conn.cursor()
-        cur.execute(sql, tuple(params))
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
         conn.commit()
-        cur.close()
         conn.close()
     else:
         with conn:
@@ -110,22 +107,21 @@ def init_db_if_missing() -> None:
     - En SQLite: crea tabla + (opcional) migra desde patients si donantes está vacía
     """
     if is_postgres():
-        # Tabla en Postgres
         execute(
             """
             CREATE TABLE IF NOT EXISTS donantes (
                 id SERIAL PRIMARY KEY,
                 dni TEXT NOT NULL UNIQUE,
                 nombre TEXT NOT NULL,
-                fecha_nacimiento TEXT NOT NULL,      -- YYYY-MM-DD
-                genero TEXT NOT NULL,                -- M/F
-                grupo_sanguineo TEXT NOT NULL,       -- A/B/AB/O
-                factor_rh TEXT NOT NULL,             -- + / - / NS
-                estado_validacion TEXT NOT NULL,     -- activo / pendiente_validacion
+                fecha_nacimiento TEXT NOT NULL,
+                genero TEXT NOT NULL,
+                grupo_sanguineo TEXT NOT NULL,
+                factor_rh TEXT NOT NULL,
+                estado_validacion TEXT NOT NULL,
                 localidad TEXT NOT NULL,
                 email TEXT NOT NULL,
                 telefono TEXT NOT NULL,
-                password TEXT NOT NULL               -- demo académica (no productivo)
+                password TEXT NOT NULL
             );
             """
         )
@@ -141,15 +137,15 @@ def init_db_if_missing() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             dni TEXT NOT NULL UNIQUE,
             nombre TEXT NOT NULL,
-            fecha_nacimiento TEXT NOT NULL,      -- YYYY-MM-DD
-            genero TEXT NOT NULL,                -- M/F
-            grupo_sanguineo TEXT NOT NULL,       -- A/B/AB/O
-            factor_rh TEXT NOT NULL,             -- + / - / NS
-            estado_validacion TEXT NOT NULL,     -- activo / pendiente_validacion
+            fecha_nacimiento TEXT NOT NULL,
+            genero TEXT NOT NULL,
+            grupo_sanguineo TEXT NOT NULL,
+            factor_rh TEXT NOT NULL,
+            estado_validacion TEXT NOT NULL,
             localidad TEXT NOT NULL,
             email TEXT NOT NULL,
             telefono TEXT NOT NULL,
-            password TEXT NOT NULL               -- demo académica (no productivo)
+            password TEXT NOT NULL
         )
         """
     )
@@ -384,7 +380,6 @@ def donantes_nuevo():
 
         estado_validacion = "pendiente_validacion" if rh == "NS" else "activo"
 
-        # Insert (con placeholder compatible)
         try:
             execute(
                 f"""
@@ -396,7 +391,6 @@ def donantes_nuevo():
                 (dni, nombre, fecha_nacimiento, genero, grupo, rh, estado_validacion, localidad, email, telefono, password),
             )
         except Exception as e:
-            # Si DNI repetido en Postgres o SQLite
             msg = str(e).lower()
             if "unique" in msg or "duplicate" in msg:
                 flash("Ese DNI ya está registrado.", "warning")
@@ -419,13 +413,11 @@ def donantes_nuevo():
 @app.route("/reset-db", methods=["POST"])
 def reset_db():
     if is_postgres():
-        # En Postgres borramos tabla y la recreamos
         execute("DROP TABLE IF EXISTS donantes;")
         init_db_if_missing()
         flash("Base reiniciada (PostgreSQL).", "info")
         return redirect(url_for("donantes"))
 
-    # SQLite local
     if os.path.exists(DB_PATH):
         os.remove(DB_PATH)
     init_db_if_missing()
@@ -434,5 +426,4 @@ def reset_db():
 
 
 if __name__ == "__main__":
-    # Local: python app.py
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
