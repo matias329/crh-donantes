@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Ficha del Donante</title>
+  <style>
+    :root{ --bg:#0f0f12; --card:#15151b; --border:#2a2a33; --border2:#3b3b46;
+           --text:#fff; --muted:#b9b9c6; --ok:#20c997; --warn:#ffc107; }
+    *{ box-sizing:border-box; }
+    body{ font-family:system-ui,Arial; margin:30px; background:var(--bg); color:var(--text); }
+    .wrap{ max-width: 980px; margin:0 auto; }
+    .card{ padding:22px; border:1px solid var(--border); border-radius:16px; background:var(--card); }
+    .muted{ color:var(--muted); }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px; }
+    @media (max-width:820px){ .grid{ grid-template-columns:1fr; } }
+    .item{ border:1px solid var(--border); border-radius:14px; padding:14px; background: rgba(0,0,0,.18); }
+    .label{ color:var(--muted); font-size:12px; margin-bottom:6px; }
+    .value{ font-size:14px; font-weight:700; }
+    .badge{ display:inline-block; font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border2); color:var(--muted); }
+    .badge.ok{ border-color:var(--ok); color:var(--ok); }
+    .badge.warn{ border-color:var(--warn); color:var(--warn); }
+    a{ color:#fff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2 style="margin:0 0 6px;">Ficha del Donante</h2>
+      <div class="muted">ID: {{ d["id"] }} · DNI: <b>{{ d["dni"] }}</b></div>
+
+      <div style="margin-top:10px;">
+        {% if d["estado_validacion"] == "activo" %}
+          <span class="badge ok">Activo</span>
+        {% else %}
+          <span class="badge warn">Pendiente validación</span>
+        {% endif %}
+      </div>
+
+      <div class="grid">
+        <div class="item"><div class="label">Nombre</div><div class="value">{{ d["nombre"] }}</div></div>
+        <div class="item"><div class="label">Fecha de nacimiento</div><div class="value">{{ d["fecha_nacimiento"] }}</div></div>
+        <div class="item"><div class="label">Género</div><div class="value">{{ d["genero"] }}</div></div>
+        <div class="item"><div class="label">Grupo sanguíneo</div><div class="value">{{ d["grupo_sanguineo"] }}</div></div>
+        <div class="item"><div class="label">Factor RH</div><div class="value">{{ d["factor_rh"] }}</div></div>
+        <div class="item"><div class="label">Localidad</div><div class="value">{{ d["localidad"] }}</div></div>
+        <div class="item"><div class="label">Email</div><div class="value">{{ d["email"] }}</div></div>
+        <div class="item"><div class="label">Teléfono</div><div class="value">{{ d["telefono"] }}</div></div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <a href="/donantes">← Volver a la base</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

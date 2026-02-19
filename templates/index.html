@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Donantes · CRH</title>
+
+  <style>
+    :root{
+      --bg:#0f0f12;
+      --card:#15151b;
+      --border:#2a2a33;
+      --border2:#3b3b46;
+      --text:#ffffff;
+      --muted:#b9b9c6;
+      --primary:#e6007a;
+      --ok:#20c997;
+      --warn:#ffc107;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      margin: 30px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap{ max-width: 1100px; margin: 0 auto; }
+    .topbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+    .tabs{ display:flex; gap:10px; flex-wrap:wrap; }
+    .tabs a{
+      padding:10px 12px; border:1px solid var(--border2); border-radius:12px;
+      text-decoration:none; color:var(--text); font-size:14px;
+    }
+    .tabs a.primary{ background:var(--primary); border-color:var(--primary); font-weight:600; }
+
+    .card{ padding: 18px; border:1px solid var(--border); border-radius:16px; background:var(--card); }
+    h2{ margin:0 0 6px; }
+    .muted{ color:var(--muted); font-size:13px; margin:0; }
+
+    .filters{
+      margin-top:14px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:14px;
+      background: rgba(0,0,0,.18);
+    }
+
+    /* ✅ actualizamos columnas para incluir "Nombre" */
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr 1.2fr 1fr 1fr 1fr 1fr;
+      gap:10px;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+    }
+
+    label{ display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
+    input, select{
+      width:100%;
+      padding:10px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .btn{
+      display:inline-block;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border2);
+      text-decoration:none;
+      color:var(--text);
+      font-weight:700;
+      font-size:13px;
+      background: transparent;
+      cursor:pointer;
+    }
+    .btn.primary{
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      margin-top:14px;
+      overflow:hidden;
+      border-radius:14px;
+    }
+    th, td{
+      padding:12px 10px;
+      border-bottom:1px solid var(--border);
+      font-size:13px;
+      text-align:left;
+      vertical-align:top;
+    }
+    th{ color: var(--muted); font-weight:700; background: rgba(0,0,0,.18); }
+
+    /* ✅ fila clickeable */
+    tr.rowlink{ cursor:pointer; }
+    tr.rowlink:hover td{ background: rgba(255,255,255,.05); }
+
+    .badge{
+      display:inline-block;
+      font-size:12px;
+      padding:5px 10px;
+      border-radius:999px;
+      border:1px solid var(--border2);
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .badge.ok{ border-color:var(--ok); color:var(--ok); }
+    .badge.warn{ border-color:var(--warn); color:var(--warn); }
+
+    .small{ color:var(--muted); font-size:12px; }
+    .footerline{ margin-top:10px; color:var(--muted); font-size:12px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div>
+        <b>Sangre Jujeña</b><br>
+        <span class="muted">Centro Regional de Hemoterapia (CRH) · Base de Donantes</span>
+      </div>
+      <div class="tabs">
+        <a href="/">Inicio</a>
+        <a class="primary" href="/donantes">Ver Donantes</a>
+        <a href="/donantes/nuevo">Cargar Donante</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Donantes registrados</h2>
+      <p class="muted">Total en base: <b>{{ total }}</b></p>
+
+      <div class="filters">
+        <form method="get" action="/donantes">
+          <div class="grid">
+            <div>
+              <label>DNI (parcial)</label>
+              <input type="text" name="dni" value="{{ q_dni|default('') }}" placeholder="Ej: 1234">
+            </div>
+
+            <!-- ✅ NUEVO: filtro por nombre -->
+            <div>
+              <label>Nombre (parcial)</label>
+              <input type="text" name="nombre" value="{{ q_nombre|default('') }}" placeholder="Ej: Juan">
+            </div>
+
+            <div>
+              <label>Localidad</label>
+              <select name="localidad">
+                <option value="">Todas</option>
+                {% for loc in localidades %}
+                  <option value="{{ loc }}" {% if q_localidad==loc %}selected{% endif %}>{{ loc }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label>Grupo</label>
+              <select name="grupo">
+                <option value="">Todos</option>
+                {% for g in blood_groups %}
+                  <option value="{{ g }}" {% if q_grupo==g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label>Factor RH</label>
+              <select name="rh">
+                <option value="">Todos</option>
+                <option value="+" {% if q_rh=="+" %}selected{% endif %}>+</option>
+                <option value="-" {% if q_rh=="-" %}selected{% endif %}>-</option>
+                <option value="NS" {% if q_rh=="NS" %}selected{% endif %}>No lo sé</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Estado</label>
+              <select name="estado">
+                <option value="">Todos</option>
+                <option value="activo" {% if q_estado=="activo" %}selected{% endif %}>Activo</option>
+                <option value="pendiente_validacion" {% if q_estado=="pendiente_validacion" %}selected{% endif %}>Pendiente validación</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn primary" type="submit">Buscar</button>
+              <a class="btn" href="/donantes">Limpiar filtros</a>
+            </div>
+            <div class="small">Tip: hacé click en un registro para abrir la ficha del donante.</div>
+          </div>
+        </form>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>DNI</th>
+            <th>Nombre</th>
+            <th>Grupo</th>
+            <th>RH</th>
+            <th>Localidad</th>
+            <th>Estado</th>
+            <th>Contacto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if rows and rows|length > 0 %}
+            {% for r in rows %}
+              <!-- ✅ click en la fila abre la ficha en otra pestaña -->
+              <tr class="rowlink"
+                  onclick="window.open('/donantes/{{ r['id'] }}','_blank')"
+                  title="Abrir ficha del donante">
+                <td>
+                  <b>{{ r["dni"] }}</b>
+                  <div class="small">Nac: {{ r["fecha_nacimiento"] }}</div>
+                </td>
+                <td>{{ r["nombre"] }}</td>
+                <td>{{ r["grupo_sanguineo"] }}</td>
+                <td>{{ r["factor_rh"] }}</td>
+                <td>{{ r["localidad"] }}</td>
+                <td>
+                  {% if r["estado_validacion"] == "activo" %}
+                    <span class="badge ok">Activo</span>
+                  {% else %}
+                    <span class="badge warn">Pendiente validación</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div>{{ r["email"] }}</div>
+                  <div class="small">{{ r["telefono"] }}</div>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="small">No hay resultados para los filtros seleccionados.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <div class="footerline">
+        *Este panel es parte del prototipo académico. No sustituye sistemas clínicos oficiales.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

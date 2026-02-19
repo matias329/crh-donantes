@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Sangre Jujeña · CRH</title>
+
+  <style>
+    :root{
+      --bg:#0f0f12;
+      --card:#15151b;
+      --border:#2a2a33;
+      --border2:#3b3b46;
+      --text:#ffffff;
+      --muted:#b9b9c6;
+      --primary:#e6007a;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      margin: 30px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap{ max-width: 980px; margin: 0 auto; }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom: 14px;
+      gap: 12px;
+    }
+
+    .brand{
+      display:flex;
+      flex-direction:column;
+    }
+
+    .brand b{ font-size: 16px; }
+    .brand span{ font-size: 12px; color: var(--muted); }
+
+    .tabs{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .tabs a{
+      padding:10px 12px;
+      border:1px solid var(--border2);
+      border-radius:12px;
+      text-decoration:none;
+      color: var(--text);
+      font-size:14px;
+    }
+
+    .tabs a.primary{
+      background: var(--primary);
+      border-color: var(--primary);
+      font-weight:600;
+    }
+
+    .card{
+      padding:26px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background: var(--card);
+    }
+
+    h1{ margin:0 0 8px; font-size:28px; }
+    .muted{ color: var(--muted); }
+
+    .cta{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+
+    .btn{
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid var(--border2);
+      text-decoration:none;
+      color:var(--text);
+      font-weight:600;
+      font-size:14px;
+    }
+
+    .btn.primary{
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    hr{
+      border:0;
+      border-top:1px solid var(--border);
+      margin:18px 0;
+    }
+
+    .panel{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+      margin-top:14px;
+      background: rgba(0,0,0,.18);
+    }
+
+    ul{
+      margin:8px 0 0;
+      padding-left:18px;
+      color: var(--muted);
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .footer{
+      margin-top:14px;
+      color:var(--muted);
+      font-size:12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div class="brand">
+        <b>Sangre Jujeña</b>
+        <span>Centro Regional de Hemoterapia (CRH) · Prototipo TFG</span>
+      </div>
+
+      <div class="tabs">
+        <a href="/">Inicio</a>
+        <a href="/donantes">Ver Donantes</a>
+        <a href="/donantes/nuevo">Cargar Donante</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Únete a la red de donantes voluntarios</h1>
+      <p class="muted">
+        Plataforma digital para registrar y consultar información de donantes voluntarios.
+      </p>
+
+      <div class="cta">
+        <a class="btn primary" href="/donantes">
+          Ver Donantes (Base de Datos)
+        </a>
+        <a class="btn" href="/donantes/nuevo">
+          Cargar Donante
+        </a>
+      </div>
+
+      <hr>
+
+      <div class="panel">
+        <h3>Funcionalidades del sistema</h3>
+        <ul>
+          <li>Registro de nuevos donantes.</li>
+          <li>Consulta centralizada en base de datos.</li>
+          <li>Búsqueda por nombre, grupo sanguíneo y edad.</li>
+          <li>Validaciones básicas de elegibilidad.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h3>Criterios básicos</h3>
+        <ul>
+          <li>Edad permitida: 18 a 65 años.</li>
+          <li>Grupo y factor sanguíneo obligatorios.</li>
+          <li>Datos almacenados en base SQLite local.</li>
+        </ul>
+      </div>
+
+      <div class="footer">
+        Versión académica desarrollada para Trabajo Final de Grado.
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
+

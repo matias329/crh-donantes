@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Registro de Donante · CRH</title>
+
+  <style>
+    :root{
+      --bg:#0f0f12;
+      --card:#15151b;
+      --border:#2a2a33;
+      --border2:#3b3b46;
+      --text:#ffffff;
+      --muted:#b9b9c6;
+      --primary:#e6007a;
+      --ok:#20c997;
+      --warn:#ffc107;
+      --bad:#ff5c7a;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      margin: 30px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap{ max-width: 980px; margin: 0 auto; }
+    .topbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+    .tabs{ display:flex; gap:10px; flex-wrap:wrap; }
+    .tabs a{
+      padding:10px 12px; border:1px solid var(--border2); border-radius:12px;
+      text-decoration:none; color:var(--text); font-size:14px;
+    }
+    .tabs a.primary{ background:var(--primary); border-color:var(--primary); font-weight:600; }
+
+    .card{ padding:26px; border:1px solid var(--border); border-radius:16px; background:var(--card); }
+    .header{
+      display:flex; justify-content:space-between; align-items:flex-start; gap:14px;
+      padding:16px; border:1px solid var(--border); border-radius:14px; background:rgba(0,0,0,.18);
+      margin-bottom: 14px;
+    }
+    .header b{ font-size:16px; }
+    .header .muted{ color:var(--muted); font-size:13px; margin-top:6px; }
+
+    .block{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+      background: rgba(0,0,0,.18);
+      margin-top: 14px;
+    }
+    .block h3{ margin:0 0 10px; font-size:14px; letter-spacing:.2px; }
+    label{ display:block; margin-top:12px; color:var(--muted); font-size:13px; }
+    input, select{
+      width:100%; margin-top:8px; padding:12px;
+      border-radius:12px; border:1px solid var(--border);
+      background: var(--bg); color: var(--text);
+    }
+    .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 820px){ .row2{ grid-template-columns:1fr; } }
+
+    .hint{ margin-top:8px; color:var(--muted); font-size:12px; }
+    .badge{ font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border2); color:var(--muted); }
+    .badge.ok{ border-color:var(--ok); color:var(--ok); }
+    .badge.bad{ border-color:var(--bad); color:var(--bad); }
+    .badge.warn{ border-color:var(--warn); color:var(--warn); }
+
+    .checklist{ margin-top:10px; color:var(--muted); font-size:13px; line-height:1.6; }
+    .checklist b{ color:var(--text); }
+
+    button{
+      margin-top:16px; width:100%;
+      padding:13px 14px; border-radius:12px; border:0;
+      background: var(--primary); color: var(--text);
+      font-weight:800; cursor:pointer; font-size:14px;
+      opacity:.55;
+    }
+    button.enabled{ opacity:1; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <b>Sangre Jujeña</b><br>
+        <span style="color:var(--muted); font-size:12px;">Registro de Donantes · Prototipo TFG</span>
+      </div>
+      <div class="tabs">
+        <a href="/" >Inicio</a>
+        <a href="/donantes">Ver Donantes</a>
+        <a class="primary" href="/donantes/nuevo">Cargar Donante</a>
+      </div>
+    </div>
+
+    <div class="card">
+
+      <div class="header">
+        <div>
+          <b>Únete a la red de donantes voluntarios</b>
+          <div class="muted">Tu registro ayuda a salvar vidas en tu región. <b>[Plataforma oficial CRH]</b></div>
+        </div>
+        <span id="statusDni" class="badge">DNI: sin validar</span>
+      </div>
+
+      <form method="post" id="formDonante">
+
+        <!-- BLOQUE 1 -->
+        <div class="block">
+          <h3>BLOQUE 1: IDENTIDAD Y VALIDACIÓN (Crítico)</h3>
+
+          <!-- ✅ NUEVO: Nombre y apellido -->
+          <label>Nombre y apellido</label>
+          <input type="text" name="nombre" id="nombre" placeholder="Ej: Juan Pérez" required>
+
+          <div class="row2">
+            <div>
+              <label>DNI</label>
+              <input type="text" name="dni" id="dni" placeholder="Ej: 12345678" required>
+              <div class="hint">Verificación automática de duplicidad (se valida al guardar).</div>
+            </div>
+
+            <div>
+              <label>Fecha de nacimiento</label>
+              <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" required>
+              <div class="hint">Edad calculada: <b id="edad_calc">—</b></div>
+            </div>
+          </div>
+
+          <label>Género</label>
+          <div class="row2">
+            <select name="genero" id="genero" required>
+              <option value="">Seleccionar...</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+
+            <div class="hint" style="align-self:center;">
+              Tooltip: utilizado para calcular tiempos de espera entre donaciones según normativa vigente.
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 2 -->
+        <div class="block">
+          <h3>BLOQUE 2: PERFIL HEMÁTICO Y UBICACIÓN</h3>
+
+          <div class="row2">
+            <div>
+              <label>Grupo sanguíneo</label>
+              <select name="grupo_sanguineo" id="grupo_sanguineo" required>
+                <option value="">Seleccionar...</option>
+                {% for g in blood_groups %}
+                  <option value="{{ g }}">{{ g }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label>Factor RH</label>
+              <select name="factor_rh" id="factor_rh" required>
+                <option value="">Seleccionar...</option>
+                <option value="+">+</option>
+                <option value="-">-</option>
+                <option value="NS">No lo sé</option>
+              </select>
+              <div class="hint" id="rh_hint"></div>
+            </div>
+          </div>
+
+          <label>Localidad</label>
+          <select name="localidad" id="localidad" required>
+            <option value="">Seleccionar ciudad...</option>
+            {% for loc in localidades %}
+              <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Permite recibir campañas cercanas.</div>
+        </div>
+
+        <!-- BLOQUE 3 -->
+        <div class="block">
+          <h3>BLOQUE 3: CUENTA Y CONTACTO</h3>
+
+          <label>Email</label>
+          <input type="email" name="email" id="email" placeholder="ejemplo@mail.com" required>
+
+          <label>Teléfono / WhatsApp</label>
+          <input type="text" name="telefono" id="telefono" placeholder="Ej: 3881234567" required>
+          <div class="hint">Usado solo para notificaciones de donación.</div>
+
+          <label>Contraseña</label>
+          <input type="password" name="password" id="password" minlength="6" required>
+          <div class="hint">Mínimo 6 caracteres (demo académica).</div>
+
+          <div class="checklist">
+            <div>Requisitos cumplidos:</div>
+            <div>• <span id="chkEdad">✗</span> <b>Edad válida</b></div>
+            <div>• <span id="chkIdent">✗</span> <b>Nombre y DNI cargados</b></div>
+            <div>• <span id="chkOblig">✗</span> <b>Campos obligatorios completos</b></div>
+          </div>
+
+          <button id="btnSubmit" type="submit">REGISTRARME</button>
+          <div class="hint">Habilitado solo si todo es válido.</div>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+
+  <script>
+    const nombre = document.getElementById("nombre");
+    const dni = document.getElementById("dni");
+    const fn = document.getElementById("fecha_nacimiento");
+    const edadCalc = document.getElementById("edad_calc");
+    const rh = document.getElementById("factor_rh");
+    const rhHint = document.getElementById("rh_hint");
+
+    const chkEdad = document.getElementById("chkEdad");
+    const chkIdent = document.getElementById("chkIdent");
+    const chkOblig = document.getElementById("chkOblig");
+
+    const btn = document.getElementById("btnSubmit");
+    const statusDni = document.getElementById("statusDni");
+
+    function calcEdad() {
+      if (!fn.value) return null;
+      const d = new Date(fn.value + "T00:00:00");
+      if (Number.isNaN(d.getTime())) return null;
+      const hoy = new Date();
+      let edad = hoy.getFullYear() - d.getFullYear();
+      const m = hoy.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && hoy.getDate() < d.getDate())) edad--;
+      return edad;
+    }
+
+    function allRequiredFilled() {
+      // ✅ agregado "nombre"
+      const requiredIds = ["nombre","dni","fecha_nacimiento","genero","grupo_sanguineo","factor_rh","localidad","email","telefono","password"];
+      return requiredIds.every(id => {
+        const el = document.getElementById(id);
+        return el && String(el.value || "").trim().length > 0;
+      });
+    }
+
+    function updateUI() {
+      const edad = calcEdad();
+      edadCalc.textContent = (edad === null) ? "—" : (edad + " años");
+
+      const edadOk = (edad !== null && edad >= 18 && edad <= 65);
+      chkEdad.textContent = edadOk ? "✓" : "✗";
+
+      const nombreOk = String(nombre.value || "").trim().length > 0;
+      const dniOk = String(dni.value || "").trim().length > 0;
+      const identOk = nombreOk && dniOk;
+      chkIdent.textContent = identOk ? "✓" : "✗";
+
+      const obligOk = allRequiredFilled();
+      chkOblig.textContent = obligOk ? "✓" : "✗";
+
+      if (rh.value === "NS") {
+        rhHint.textContent = "Si selecciona “No lo sé”, el perfil queda en estado: Pendiente de validación médica.";
+      } else {
+        rhHint.textContent = "";
+      }
+
+      if (!dniOk) {
+        statusDni.className = "badge";
+        statusDni.textContent = "DNI: sin validar";
+      } else {
+        statusDni.className = "badge warn";
+        statusDni.textContent = "DNI: se valida al guardar";
+      }
+
+      const canSubmit = edadOk && identOk && obligOk;
+      btn.className = canSubmit ? "enabled" : "";
+      btn.disabled = !canSubmit;
+    }
+
+    document.querySelectorAll("input,select").forEach(el => el.addEventListener("input", updateUI));
+    updateUI();
+  </script>
+</body>
+</html>
