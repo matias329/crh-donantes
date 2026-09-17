@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block titulo %}Panel administrativo · CRH Jujuy{% endblock %}
+{% block nav_clase %}pestana-admin{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio">
+    <div class="seccion-titulo">
+      <h1 style="font-size:1.6rem;">Donantes registrados</h1>
+      <p>{{ total }} en total{% if filtros_activos %} · {{ donantes|length }} en esta página tras filtrar{% endif %}</p>
+    </div>
+
+    <form class="filtros panel panel-chico" method="GET">
+      <div class="campo">
+        <label for="q">Nombre o DNI</label>
+        <input type="text" id="q" name="q" value="{{ request.args.get('q', '') }}" placeholder="Buscar...">
+      </div>
+      <div class="campo">
+        <label for="grupo">Grupo sanguíneo</label>
+        <select id="grupo" name="grupo">
+          <option value="">Todos</option>
+          {% for g in blood_groups %}
+            <option value="{{ g }}" {% if request.args.get('grupo') == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="localidad">Localidad</label>
+        <select id="localidad" name="localidad">
+          <option value="">Todas</option>
+          {% for l in localidades %}
+            <option value="{{ l }}" {% if request.args.get('localidad') == l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="edad_min">Edad mín.</label>
+        <input type="number" id="edad_min" name="edad_min" value="{{ request.args.get('edad_min', '') }}" min="0">
+      </div>
+      <div class="campo">
+        <label for="edad_max">Edad máx.</label>
+        <input type="number" id="edad_max" name="edad_max" value="{{ request.args.get('edad_max', '') }}" min="0">
+      </div>
+      <button type="submit" class="boton boton-primario">Filtrar</button>
+      {% if filtros_activos %}<a class="boton boton-secundario" href="{{ url_for('admin_dashboard') }}">Limpiar</a>{% endif %}
+    </form>
+
+    <div class="tabla-envoltorio">
+      <table>
+        <thead>
+          <tr>
+            <th>DNI</th><th>Nombre</th><th>Edad</th><th>Grupo</th><th>Localidad</th><th>Estado</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in donantes %}
+            <tr>
+              <td>{{ d.dni }}</td>
+              <td>{{ d.nombre }}</td>
+              <td>{{ d.edad }}</td>
+              <td>{{ d.grupo_sanguineo }}{{ d.factor_rh }}</td>
+              <td>{{ d.localidad }}</td>
+              <td>
+                {% if d.estado_calculado in ['Apto', 'Apto Manual'] %}
+                  <span class="insignia insignia-apto">{{ d.estado_calculado }}</span>
+                {% elif d.estado_calculado == 'En espera' %}
+                  <span class="insignia insignia-espera">{{ d.estado_calculado }}</span>
+                {% else %}
+                  <span class="insignia insignia-no-apto">{{ d.estado_calculado }}</span>
+                {% endif %}
+              </td>
+              <td><a class="boton boton-secundario boton-chico" href="{{ url_for('admin_detalle_paciente', id=d.id) }}">Ver ficha</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="centro-vacio">No se encontraron donantes con estos filtros.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total_paginas > 1 %}
+      <div class="paginacion">
+        {% for p in range(1, total_paginas + 1) %}
+          <a class="boton {% if p == pagina %}boton-primario{% else %}boton-secundario{% endif %} boton-chico"
+             href="{{ url_for('admin_dashboard', pagina=p, q=request.args.get('q',''), grupo=request.args.get('grupo',''), localidad=request.args.get('localidad',''), edad_min=request.args.get('edad_min',''), edad_max=request.args.get('edad_max','')) }}">{{ p }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio">
+    <div class="seccion-titulo">
+      <h2>Campañas cargadas</h2>
+    </div>
+    {% if campanas %}
+      <div class="tabla-envoltorio">
+        <table>
+          <thead><tr><th>Fecha</th><th>Título</th><th>Tipo</th><th>Ubicación</th><th>Localidad</th></tr></thead>
+          <tbody>
+            {% for c in campanas %}
+              <tr>
+                <td>{{ c.fecha }}</td>
+                <td>{{ c.titulo }}</td>
+                <td>{{ c.tipo }}</td>
+                <td>{{ c.ubicacion }}</td>
+                <td>{{ c.localidad }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="panel centro-vacio">No hay campañas cargadas.</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Panel administrativo · CRH Jujuy{% endblock %}
+{% block nav_clase %}pestana-admin{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio" style="max-width:420px;">
+    <h1 style="font-size:1.7rem;">Panel administrativo</h1>
+    <p class="parrafo-guia">Acceso exclusivo para personal del Centro Regional de Hemoterapia.</p>
+    <form class="formulario" method="POST" style="max-width:100%;">
+      <div class="campo">
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username" required autofocus>
+      </div>
+      <div class="campo">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="boton boton-primario boton-bloque">Ingresar al panel</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

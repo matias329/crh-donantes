@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Ingresar · CRH Jujuy{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio" style="max-width:420px;">
+    <h1 style="font-size:1.8rem;">Ingresá a tu portal</h1>
+    <p class="parrafo-guia">Consultá tu estado de aptitud y las campañas disponibles en tu zona.</p>
+
+    <form class="formulario" method="POST" style="max-width:100%;">
+      <div class="campo">
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" name="email" required autofocus>
+      </div>
+      <div class="campo">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="boton boton-primario boton-bloque">Ingresar</button>
+      <p class="ayuda" style="text-align:center; margin-top:14px;">
+        ¿Todavía no sos donante? <a href="{{ url_for('registro') }}">Registrate</a>
+      </p>
+      <p class="ayuda" style="text-align:center;">
+        ¿Sos personal del CRH? <a href="{{ url_for('admin_login') }}">Ingresar al panel administrativo</a>
+      </p>
+    </form>
+  </div>
+</section>
+{% endblock %}

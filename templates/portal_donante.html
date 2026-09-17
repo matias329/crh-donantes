@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block titulo %}Mi portal · CRH Jujuy{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio">
+    <h1 style="font-size:1.7rem;">Hola, {{ donante.nombre.split(' ')[0] }}</h1>
+
+    <div class="rejilla rejilla-2" style="align-items:start;">
+
+      <div class="panel tarjeta-estado">
+        {% if estado == 'Apto' or estado == 'Apto Manual' %}
+          <span class="insignia insignia-apto">{{ estado }}</span>
+        {% elif estado == 'En espera' %}
+          <span class="insignia insignia-espera">{{ estado }}</span>
+        {% else %}
+          <span class="insignia insignia-no-apto">{{ estado }}</span>
+        {% endif %}
+        <p class="motivo">{{ motivo }}</p>
+
+        <dl class="datos-donante">
+          <div><dt>Grupo</dt><dd class="grupo-sanguineo">{{ donante.grupo_sanguineo }}{{ donante.factor_rh }}</dd></div>
+          <div><dt>Localidad</dt><dd>{{ donante.localidad }}</dd></div>
+          <div><dt>Edad</dt><dd>{{ edad }} años</dd></div>
+          <div><dt>Última donación</dt><dd>{{ historial[0].fecha_donacion if historial else "Sin registros" }}</dd></div>
+        </dl>
+      </div>
+
+      <div class="panel">
+        <h3 style="font-size:1.05rem;">Mis turnos reservados</h3>
+        {% if turnos %}
+          <ul style="padding-left:18px; margin:0;">
+            {% for t in turnos %}
+              <li>{{ t.titulo }} — {{ t.hora }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="ayuda" style="margin:0;">Todavía no reservaste turnos.</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio">
+    <div class="seccion-titulo">
+      <h2>Campañas en {{ donante.localidad }}</h2>
+      <p>Reservá tu turno si tu estado es apto.</p>
+    </div>
+    {% if campanas %}
+      <div class="rejilla rejilla-3">
+        {% for c in campanas %}
+          <article class="tarjeta-campana">
+            <span class="tipo">{{ c.tipo }}</span>
+            <div class="fecha">{{ c.fecha }}</div>
+            <h3 style="font-size:1.05rem;">{{ c.titulo }}</h3>
+            <p style="margin:0 0 14px; color:var(--piedra); font-size:0.9rem;">{{ c.ubicacion }}</p>
+            <form method="POST" action="{{ url_for('reservar_turno') }}">
+              <input type="hidden" name="campana_id" value="{{ c.id }}">
+              <div class="campo" style="margin-bottom:10px;">
+                <input type="time" name="hora" required {% if estado not in ['Apto', 'Apto Manual'] %}disabled{% endif %}>
+              </div>
+              <button type="submit" class="boton boton-secundario boton-chico boton-bloque"
+                {% if estado not in ['Apto', 'Apto Manual'] %}disabled title="Tu estado actual no permite reservar"{% endif %}>
+                Reservar turno
+              </button>
+            </form>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="panel centro-vacio">No hay campañas cargadas en tu localidad todavía.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio">
+    <div class="seccion-titulo">
+      <h2>Historial de donaciones</h2>
+    </div>
+    {% if historial %}
+      <div class="tabla-envoltorio">
+        <table>
+          <thead><tr><th>Fecha</th><th>Volumen</th><th>Observaciones</th></tr></thead>
+          <tbody>
+            {% for h in historial %}
+              <tr>
+                <td>{{ h.fecha_donacion }}</td>
+                <td>{{ h.volumen_ml or "—" }} ml</td>
+                <td>{{ h.observaciones or "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="panel centro-vacio">Todavía no tenés donaciones registradas.</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}{{ d.nombre }} · Panel administrativo{% endblock %}
+{% block nav_clase %}pestana-admin{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio">
+    <p><a href="{{ url_for('admin_dashboard') }}">&larr; Volver al listado</a></p>
+    <div class="seccion-titulo">
+      <h1 style="font-size:1.6rem;">{{ d.nombre }}</h1>
+      {% if estado in ['Apto', 'Apto Manual'] %}
+        <span class="insignia insignia-apto">{{ estado }}</span>
+      {% elif estado == 'En espera' %}
+        <span class="insignia insignia-espera">{{ estado }}</span>
+      {% else %}
+        <span class="insignia insignia-no-apto">{{ estado }}</span>
+      {% endif %}
+    </div>
+    <p class="motivo" style="color:var(--piedra); margin-top:-14px;">{{ motivo }}</p>
+
+    <div class="rejilla rejilla-2" style="align-items:start;">
+      <div class="panel">
+        <h3 style="font-size:1rem;">Datos personales</h3>
+        <dl class="datos-donante">
+          <div><dt>DNI</dt><dd>{{ d.dni }}</dd></div>
+          <div><dt>Nacimiento</dt><dd>{{ d.fecha_nacimiento }}</dd></div>
+          <div><dt>Género</dt><dd>{{ d.genero }}</dd></div>
+          <div><dt>Grupo</dt><dd class="grupo-sanguineo">{{ d.grupo_sanguineo }}{{ d.factor_rh }}</dd></div>
+          <div><dt>Localidad</dt><dd>{{ d.localidad }}</dd></div>
+          <div><dt>Correo</dt><dd>{{ d.email }}</dd></div>
+          <div><dt>Teléfono</dt><dd>{{ d.telefono or "—" }}</dd></div>
+          <div><dt>Último tatuaje</dt><dd>{{ d.fecha_ultimo_tatuaje or "—" }}</dd></div>
+          <div><dt>Último piercing</dt><dd>{{ d.fecha_ultimo_piercing or "—" }}</dd></div>
+          <div><dt>Medicación</dt><dd>{{ "Sí" if d.toma_medicacion else "No" }}</dd></div>
+        </dl>
+      </div>
+
+      <div class="panel">
+        <h3 style="font-size:1rem;">Decisión médica manual</h3>
+        <form method="POST">
+          <input type="hidden" name="action" value="update_status">
+          <div class="campo">
+            <label for="estado_manual">Estado</label>
+            <select id="estado_manual" name="estado_manual">
+              <option value="Automatico" {% if d.estado_manual == 'Automatico' %}selected{% endif %}>Automático (calculado por el sistema)</option>
+              <option value="Apto Manual" {% if d.estado_manual == 'Apto Manual' %}selected{% endif %}>Apto Manual</option>
+              <option value="No Apto Manual" {% if d.estado_manual == 'No Apto Manual' %}selected{% endif %}>No Apto Manual</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="observaciones_medicas">Observaciones médicas</label>
+            <textarea id="observaciones_medicas" name="observaciones_medicas" rows="3">{{ d.observaciones_medicas or '' }}</textarea>
+          </div>
+          <button type="submit" class="boton boton-primario">Guardar decisión</button>
+        </form>
+
+        <hr style="border:none; border-top:1px solid var(--linea); margin:22px 0;">
+
+        <h3 style="font-size:1rem;">Registrar donación</h3>
+        <form method="POST">
+          <input type="hidden" name="action" value="add_donation">
+          <div class="campo-fila">
+            <div class="campo">
+              <label for="fecha_donacion">Fecha</label>
+              <input type="date" id="fecha_donacion" name="fecha_donacion" required>
+            </div>
+            <div class="campo">
+              <label for="volumen_ml">Volumen (ml)</label>
+              <input type="number" id="volumen_ml" name="volumen_ml" value="450" min="100" max="600">
+            </div>
+          </div>
+          <div class="campo">
+            <label for="observaciones">Observaciones</label>
+            <input type="text" id="observaciones" name="observaciones" placeholder="Sede, colecta externa, etc.">
+          </div>
+          <button type="submit" class="boton boton-secundario">Registrar donación</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio">
+    <div class="seccion-titulo"><h2>Historial de donaciones</h2></div>
+    {% if historial %}
+      <div class="tabla-envoltorio">
+        <table>
+          <thead><tr><th>Fecha</th><th>Volumen</th><th>Observaciones</th></tr></thead>
+          <tbody>
+            {% for h in historial %}
+              <tr>
+                <td>{{ h.fecha_donacion }}</td>
+                <td>{{ h.volumen_ml or "—" }} ml</td>
+                <td>{{ h.observaciones or "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="panel centro-vacio">Este donante todavía no registra donaciones.</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

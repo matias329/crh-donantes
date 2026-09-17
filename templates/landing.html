@@ -1,189 +1,76 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Sangre Jujeña · CRH</title>
+{% extends "base.html" %}
+{% block titulo %}CRH Jujuy · Donar sangre salva vidas{% endblock %}
+{% block contenido %}
 
-  <style>
-    :root{
-      --bg:#0f0f12;
-      --card:#15151b;
-      --border:#2a2a33;
-      --border2:#3b3b46;
-      --text:#ffffff;
-      --muted:#b9b9c6;
-      --primary:#e6007a;
-    }
-
-    *{ box-sizing:border-box; }
-
-    body{
-      font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
-      margin: 30px;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    .wrap{ max-width: 980px; margin: 0 auto; }
-
-    .topbar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom: 14px;
-      gap: 12px;
-    }
-
-    .brand{
-      display:flex;
-      flex-direction:column;
-    }
-
-    .brand b{ font-size: 16px; }
-    .brand span{ font-size: 12px; color: var(--muted); }
-
-    .tabs{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-
-    .tabs a{
-      padding:10px 12px;
-      border:1px solid var(--border2);
-      border-radius:12px;
-      text-decoration:none;
-      color: var(--text);
-      font-size:14px;
-    }
-
-    .tabs a.primary{
-      background: var(--primary);
-      border-color: var(--primary);
-      font-weight:600;
-    }
-
-    .card{
-      padding:26px;
-      border:1px solid var(--border);
-      border-radius:16px;
-      background: var(--card);
-    }
-
-    h1{ margin:0 0 8px; font-size:28px; }
-    .muted{ color: var(--muted); }
-
-    .cta{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-top:14px;
-    }
-
-    .btn{
-      padding:12px 14px;
-      border-radius:12px;
-      border:1px solid var(--border2);
-      text-decoration:none;
-      color:var(--text);
-      font-weight:600;
-      font-size:14px;
-    }
-
-    .btn.primary{
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    hr{
-      border:0;
-      border-top:1px solid var(--border);
-      margin:18px 0;
-    }
-
-    .panel{
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:16px;
-      margin-top:14px;
-      background: rgba(0,0,0,.18);
-    }
-
-    ul{
-      margin:8px 0 0;
-      padding-left:18px;
-      color: var(--muted);
-      font-size:14px;
-      line-height:1.5;
-    }
-
-    .footer{
-      margin-top:14px;
-      color:var(--muted);
-      font-size:12px;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="wrap">
-
-    <div class="topbar">
-      <div class="brand">
-        <b>Sangre Jujeña</b>
-        <span>Centro Regional de Hemoterapia (CRH) · Prototipo TFG</span>
-      </div>
-
-      <div class="tabs">
-        <a href="/">Inicio</a>
-        <a href="/donantes">Ver Donantes</a>
-        <a href="/donantes/nuevo">Cargar Donante</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <h1>Únete a la red de donantes voluntarios</h1>
-      <p class="muted">
-        Plataforma digital para registrar y consultar información de donantes voluntarios.
+<section class="hero">
+  <div class="envoltorio hero-grid">
+    <div>
+      <h1>Una donación puede salvar hasta tres vidas.</h1>
+      <p class="parrafo-guia">
+        Gestioná tu ficha de donante, conocé tu estado clínico actualizado y
+        reservá turno en la próxima campaña del Centro Regional de Hemoterapia,
+        todo desde un mismo lugar.
       </p>
-
-      <div class="cta">
-        <a class="btn primary" href="/donantes">
-          Ver Donantes (Base de Datos)
-        </a>
-        <a class="btn" href="/donantes/nuevo">
-          Cargar Donante
-        </a>
+      <div class="hero-acciones">
+        <a class="boton boton-primario" href="{{ url_for('registro') }}">Quiero ser donante</a>
+        <a class="boton boton-secundario" href="{{ url_for('login') }}">Ya tengo cuenta</a>
       </div>
-
-      <hr>
-
-      <div class="panel">
-        <h3>Funcionalidades del sistema</h3>
-        <ul>
-          <li>Registro de nuevos donantes.</li>
-          <li>Consulta centralizada en base de datos.</li>
-          <li>Búsqueda por nombre, grupo sanguíneo y edad.</li>
-          <li>Validaciones básicas de elegibilidad.</li>
-        </ul>
-      </div>
-
-      <div class="panel">
-        <h3>Criterios básicos</h3>
-        <ul>
-          <li>Edad permitida: 18 a 65 años.</li>
-          <li>Grupo y factor sanguíneo obligatorios.</li>
-          <li>Datos almacenados en base SQLite local.</li>
-        </ul>
-      </div>
-
-      <div class="footer">
-        Versión académica desarrollada para Trabajo Final de Grado.
+      <div class="cifra-clave">
+        <div><strong>{{ total_donantes }}</strong><span>donantes registrados</span></div>
+        <div><strong>{{ total_donaciones }}</strong><span>donaciones acreditadas</span></div>
+        <div><strong>{{ campanas|length }}</strong><span>campañas activas</span></div>
       </div>
     </div>
-
+    <div>
+      <svg class="gota" viewBox="0 0 320 320" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración de una gota de sangre">
+        <circle cx="160" cy="160" r="150" fill="#F3DEDD"/>
+        <path d="M160 60c-40 66-78 108-78 150a78 78 0 0 0 156 0c0-42-38-84-78-150z" fill="#7A1220"/>
+        <path d="M104 210c0 26 20 46 44 50" stroke="#F3DEDD" stroke-width="8" stroke-linecap="round" fill="none"/>
+      </svg>
+    </div>
   </div>
-</body>
-</html>
+</section>
 
+<section class="seccion">
+  <div class="envoltorio">
+    <div class="seccion-titulo">
+      <h2>Próximas campañas</h2>
+      <p>Colectas y jornadas sanitarias abiertas en tu localidad.</p>
+    </div>
+    {% if campanas %}
+      <div class="rejilla rejilla-3">
+        {% for c in campanas %}
+          <article class="tarjeta-campana">
+            <span class="tipo">{{ c.tipo }}</span>
+            <div class="fecha">{{ c.fecha_legible }}</div>
+            <h3 style="font-size:1.05rem;">{{ c.titulo }}</h3>
+            <p style="margin:0; color:var(--piedra); font-size:0.9rem;">{{ c.ubicacion }} · {{ c.localidad }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="panel centro-vacio">No hay campañas cargadas por el momento.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio panel">
+    <div class="rejilla rejilla-3">
+      <div>
+        <h3 style="font-size:1.05rem;">Requisitos generales</h3>
+        <p style="font-size:0.92rem; color:var(--piedra);">Tener entre 18 y 65 años, pesar más de 50 kg y sentirse en buen estado de salud el día de la donación.</p>
+      </div>
+      <div>
+        <h3 style="font-size:1.05rem;">Ventana entre donaciones</h3>
+        <p style="font-size:0.92rem; color:var(--piedra);">90 días para varones y 120 días para mujeres, contados desde la última donación registrada.</p>
+      </div>
+      <div>
+        <h3 style="font-size:1.05rem;">Tatuajes y piercings</h3>
+        <p style="font-size:0.92rem; color:var(--piedra);">Se requiere esperar 12 meses desde la fecha de realización para poder donar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,474 @@
+/* ============================================================
+   CRH Jujuy — Sistema de diseño
+   Paleta cálida de hemoterapia: vino profundo + crema + tinta.
+   Tipografía: Fraunces (titulares) + Work Sans (interfaz/cuerpo)
+   ============================================================ */
+
+:root {
+  --vino: #7A1220;
+  --vino-oscuro: #4E0B14;
+  --vino-suave: #F3DEDD;
+  --crema: #FBF7F2;
+  --panel: #FFFFFF;
+  --tinta: #241B18;
+  --piedra: #8C8078;
+  --linea: #E7DDD2;
+
+  --verde: #2F6F4E;
+  --verde-suave: #E2EFE7;
+  --ambar: #9C6B18;
+  --ambar-suave: #F5EAD6;
+  --alerta: #B23A2E;
+  --alerta-suave: #F6E1DE;
+
+  --radio: 10px;
+  --radio-chico: 6px;
+  --sombra: 0 1px 2px rgba(36, 27, 24, 0.06), 0 8px 24px -12px rgba(36, 27, 24, 0.18);
+  --serif: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --sans: "Work Sans", -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--crema);
+  color: var(--tinta);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 0.4em;
+  letter-spacing: -0.01em;
+}
+
+p { margin: 0 0 1em; max-width: 62ch; }
+
+a { color: var(--vino); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible {
+  outline: 2px solid var(--vino);
+  outline-offset: 2px;
+}
+
+.envoltorio {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---------- Barra de navegación ---------- */
+.nav {
+  background: var(--panel);
+  border-bottom: 1px solid var(--linea);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.nav .envoltorio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+}
+
+.nav-marca {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--tinta);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-marca svg { flex-shrink: 0; }
+
+.nav-enlaces {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-enlaces a {
+  color: var(--tinta);
+  font-size: 0.94rem;
+  padding: 8px 14px;
+  border-radius: var(--radio-chico);
+}
+.nav-enlaces a:hover { background: var(--vino-suave); text-decoration: none; }
+
+/* ---------- Botones ---------- */
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 11px 22px;
+  border-radius: var(--radio-chico);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.boton:hover { text-decoration: none; }
+.boton:active { transform: translateY(1px); }
+
+.boton-primario {
+  background: var(--vino);
+  color: #fff;
+}
+.boton-primario:hover { background: var(--vino-oscuro); }
+
+.boton-secundario {
+  background: transparent;
+  color: var(--vino);
+  border-color: var(--vino);
+}
+.boton-secundario:hover { background: var(--vino-suave); }
+
+.boton-chico { padding: 7px 14px; font-size: 0.85rem; }
+
+.boton-bloque { width: 100%; }
+
+/* ---------- Tarjetas / paneles ---------- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 28px;
+  box-shadow: var(--sombra);
+}
+
+.panel-chico { padding: 20px; }
+
+.rejilla {
+  display: grid;
+  gap: 20px;
+}
+
+.rejilla-2 { grid-template-columns: repeat(2, 1fr); }
+.rejilla-3 { grid-template-columns: repeat(3, 1fr); }
+
+@media (max-width: 760px) {
+  .rejilla-2, .rejilla-3 { grid-template-columns: 1fr; }
+}
+
+/* ---------- Hero (landing) ---------- */
+.hero {
+  padding: 72px 0 56px;
+  border-bottom: 1px solid var(--linea);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
+
+.hero h1 {
+  font-size: clamp(2.1rem, 4vw, 3.1rem);
+  max-width: 14ch;
+}
+
+.hero .parrafo-guia {
+  color: var(--piedra);
+  font-size: 1.05rem;
+  max-width: 46ch;
+}
+
+.hero-acciones {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+}
+
+.gota {
+  width: 100%;
+  height: auto;
+}
+
+.cifra-clave {
+  display: flex;
+  gap: 32px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+
+.cifra-clave div strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.9rem;
+  color: var(--vino);
+}
+
+.cifra-clave div span {
+  color: var(--piedra);
+  font-size: 0.86rem;
+}
+
+.seccion {
+  padding: 56px 0;
+}
+
+.seccion-titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.seccion-titulo p { margin: 0; color: var(--piedra); }
+
+/* ---------- Tarjeta de campaña ---------- */
+.tarjeta-campana {
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 20px;
+  background: var(--panel);
+}
+
+.tarjeta-campana .fecha {
+  font-family: var(--serif);
+  color: var(--vino);
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.tarjeta-campana .tipo {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--vino);
+  background: var(--vino-suave);
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+/* ---------- Formularios ---------- */
+.formulario { max-width: 560px; }
+
+.campo { margin-bottom: 18px; }
+
+.campo label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--tinta);
+}
+
+.campo .ayuda {
+  font-size: 0.8rem;
+  color: var(--piedra);
+  margin-top: 4px;
+}
+
+input, select, textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-chico);
+  background: var(--panel);
+  color: var(--tinta);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--vino);
+  box-shadow: 0 0 0 3px var(--vino-suave);
+}
+
+.campo-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 560px) {
+  .campo-fila { grid-template-columns: 1fr; }
+}
+
+.check-linea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.check-linea input { width: auto; }
+
+/* ---------- Insignias de estado ---------- */
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.insignia::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.insignia-apto { background: var(--verde-suave); color: var(--verde); }
+.insignia-espera { background: var(--ambar-suave); color: var(--ambar); }
+.insignia-no-apto { background: var(--alerta-suave); color: var(--alerta); }
+
+/* ---------- Tarjeta de estado clínico (portal) ---------- */
+.tarjeta-estado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tarjeta-estado .motivo {
+  color: var(--piedra);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.datos-donante {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.datos-donante dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--piedra);
+  margin-bottom: 2px;
+}
+
+.datos-donante dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.grupo-sanguineo {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  color: var(--vino);
+}
+
+/* ---------- Tablas ---------- */
+.tabla-envoltorio {
+  overflow-x: auto;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  background: var(--panel);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+
+th, td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--linea);
+  white-space: nowrap;
+}
+
+th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--piedra);
+  background: var(--crema);
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--crema); }
+
+/* ---------- Barra de búsqueda / filtros admin ---------- */
+.filtros {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.filtros .campo { margin-bottom: 0; min-width: 160px; flex: 1; }
+
+/* ---------- Mensajes flash ---------- */
+.mensajes { margin-bottom: 20px; }
+
+.mensaje {
+  padding: 12px 16px;
+  border-radius: var(--radio-chico);
+  margin-bottom: 10px;
+  font-size: 0.92rem;
+  border: 1px solid transparent;
+}
+
+.mensaje-success { background: var(--verde-suave); color: var(--verde); border-color: var(--verde); }
+.mensaje-danger, .mensaje-warning { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta); }
+
+/* ---------- Pie de página ---------- */
+.pie {
+  border-top: 1px solid var(--linea);
+  padding: 28px 0;
+  color: var(--piedra);
+  font-size: 0.85rem;
+  margin-top: 60px;
+}
+
+.pie .envoltorio {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ---------- Utilidades ---------- */
+.centro-vacio {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--piedra);
+}
+
+.pestana-admin {
+  background: var(--vino-oscuro);
+}
+.pestana-admin .nav-marca, .pestana-admin .nav-marca svg { color: #fff; fill: #fff; }
+.pestana-admin .nav-enlaces a { color: #fff; }
+.pestana-admin .nav-enlaces a:hover { background: rgba(255,255,255,0.12); }
+
+.paginacion {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  justify-content: center;
+}

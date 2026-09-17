@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block titulo %}Registro de donante · CRH Jujuy{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio" style="max-width:720px;">
+    <h1 style="font-size:1.8rem;">Creá tu ficha de donante</h1>
+    <p class="parrafo-guia">Estos datos se usan para calcular tu estado clínico y avisarte de campañas en tu localidad.</p>
+
+    <form class="formulario" method="POST" style="max-width:100%;">
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="dni">DNI</label>
+          <input type="text" id="dni" name="dni" inputmode="numeric" pattern="[0-9]{7,8}" required>
+        </div>
+        <div class="campo">
+          <label for="nombre">Nombre y apellido</label>
+          <input type="text" id="nombre" name="nombre" required>
+        </div>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="fecha_nacimiento">Fecha de nacimiento</label>
+          <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" required>
+        </div>
+        <div class="campo">
+          <label for="genero">Género</label>
+          <select id="genero" name="genero" required>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="grupo_sanguineo">Grupo sanguíneo</label>
+          <select id="grupo_sanguineo" name="grupo_sanguineo" required>
+            {% for g in blood_groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="campo">
+          <label for="factor_rh">Factor RH</label>
+          <select id="factor_rh" name="factor_rh" required>
+            {% for r in rh_options %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="localidad">Localidad</label>
+        <select id="localidad" name="localidad" required>
+          {% for l in localidades %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="email">Correo electrónico</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+        <div class="campo">
+          <label for="telefono">Teléfono</label>
+          <input type="tel" id="telefono" name="telefono">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" minlength="6" required>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="fecha_ultimo_tatuaje">Último tatuaje (si aplica)</label>
+          <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje">
+        </div>
+        <div class="campo">
+          <label for="fecha_ultimo_piercing">Último piercing (si aplica)</label>
+          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label class="check-linea">
+          <input type="checkbox" name="toma_medicacion" value="1">
+          Actualmente tomo medicación de forma habitual
+        </label>
+      </div>
+
+      <button type="submit" class="boton boton-primario boton-bloque">Crear mi ficha</button>
+      <p class="ayuda" style="text-align:center; margin-top:14px;">
+        ¿Ya tenés cuenta? <a href="{{ url_for('login') }}">Ingresá acá</a>
+      </p>
+    </form>
+  </div>
+</section>
+{% endblock %}
