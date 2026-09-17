@@ -2,428 +2,435 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from typing import Any, Iterable, Optional
+from datetime import datetime, timedelta
+from typing import Optional
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, g
+from werkzeug.security import generate_password_hash, check_password_hash
 
+# ---------------------------------------------------------------------------
+# Configuración general
+# ---------------------------------------------------------------------------
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(APP_DIR, "patients.db")  # SQLite local
+DB_PATH = os.path.join(APP_DIR, "patients.db")
 
 BLOOD_GROUPS = ["A", "B", "AB", "O"]
-RH_OPTIONS = ["+", "-", "NS"]  # NS = No sé
+RH_OPTIONS = ["+", "-"]
 GENDERS = ["M", "F"]
 
 LOCALIDADES = [
     "San Salvador de Jujuy", "Palpalá", "Perico", "El Carmen",
-    "Libertador", "Humahuaca", "Tilcara", "Otra"
+    "Libertador", "Humahuaca", "Tilcara", "Otra",
 ]
 
-ESTADOS = ["activo", "pendiente_validacion"]
+# Ventanas sanitarias mínimas entre donaciones, en días, según género.
+VENTANA_DIAS = {"M": 90, "F": 120}
+EDAD_MINIMA = 18
+EDAD_MAXIMA = 65
+DONANTES_POR_PAGINA = 15
+
+ADMIN_USER = os.environ.get("ADMIN_USER", "admin@crh.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
+app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-sanitario-crh")
 
 
-def is_postgres() -> bool:
-    return bool(os.environ.get("DATABASE_URL"))
+# ---------------------------------------------------------------------------
+# Conexión a la base de datos (una por request, reutilizable con `g`)
+# ---------------------------------------------------------------------------
+def get_db() -> sqlite3.Connection:
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
 
 
-def normalize_database_url(url: str) -> str:
-    # Render a veces entrega postgres:// y psycopg acepta postgresql://
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
-    return url
-
-
-def get_db_connection():
-    """
-    Devuelve una conexión:
-    - PostgreSQL si existe DATABASE_URL (Render)
-    - SQLite si no existe (modo local)
-    """
-    if is_postgres():
-        import psycopg
-        from psycopg.rows import dict_row
-
-        db_url = normalize_database_url(os.environ["DATABASE_URL"])
-        conn = psycopg.connect(db_url, row_factory=dict_row)
-        return conn
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def ph() -> str:
-    """Placeholder según motor."""
-    return "%s" if is_postgres() else "?"
-
-
-def fetch_all(sql: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
-    conn = get_db_connection()
-    if is_postgres():
-        with conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            rows = cur.fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
-    else:
-        rows = conn.execute(sql, tuple(params)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
-
-
-def fetch_one(sql: str, params: Iterable[Any] = ()) -> Optional[dict[str, Any]]:
-    conn = get_db_connection()
-    if is_postgres():
-        with conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            row = cur.fetchone()
-        conn.close()
-        return dict(row) if row else None
-    else:
-        row = conn.execute(sql, tuple(params)).fetchone()
-        conn.close()
-        return dict(row) if row else None
-
-
-def execute(sql: str, params: Iterable[Any] = ()) -> None:
-    conn = get_db_connection()
-    if is_postgres():
-        with conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-        conn.commit()
-        conn.close()
-    else:
-        with conn:
-            conn.execute(sql, tuple(params))
-        conn.close()
+@app.teardown_appcontext
+def cerrar_db(exception=None) -> None:
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
 
 
 def init_db_if_missing() -> None:
-    """
-    Crea la tabla donantes.
-    - En Postgres: crea tabla (sin migración patients)
-    - En SQLite: crea tabla + (opcional) migra desde patients si donantes está vacía
-    """
-    if is_postgres():
-        execute(
-            """
-            CREATE TABLE IF NOT EXISTS donantes (
-                id SERIAL PRIMARY KEY,
-                dni TEXT NOT NULL UNIQUE,
-                nombre TEXT NOT NULL,
-                fecha_nacimiento TEXT NOT NULL,
-                genero TEXT NOT NULL,
-                grupo_sanguineo TEXT NOT NULL,
-                factor_rh TEXT NOT NULL,
-                estado_validacion TEXT NOT NULL,
-                localidad TEXT NOT NULL,
-                email TEXT NOT NULL,
-                telefono TEXT NOT NULL,
-                password TEXT NOT NULL
-            );
-            """
-        )
-        return
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS donantes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dni TEXT UNIQUE NOT NULL,
+                    nombre TEXT NOT NULL,
+                    fecha_nacimiento TEXT NOT NULL,
+                    genero TEXT NOT NULL,
+                    grupo_sanguineo TEXT NOT NULL,
+                    factor_rh TEXT NOT NULL,
+                    localidad TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    telefono TEXT,
+                    password_hash TEXT NOT NULL,
+                    estado_manual TEXT DEFAULT 'Automatico',
+                    observaciones_medicas TEXT DEFAULT '',
+                    fecha_ultimo_tatuaje TEXT,
+                    fecha_ultimo_piercing TEXT,
+                    toma_medicacion BOOLEAN DEFAULT 0
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS donaciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    donante_id INTEGER NOT NULL,
+                    fecha_donacion TEXT NOT NULL,
+                    volumen_ml INTEGER,
+                    observaciones TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS campanas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    titulo TEXT NOT NULL,
+                    tipo TEXT NOT NULL,
+                    fecha TEXT NOT NULL,
+                    ubicacion TEXT NOT NULL,
+                    localidad TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS turnos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    donante_id INTEGER NOT NULL,
+                    campana_id INTEGER NOT NULL,
+                    hora TEXT NOT NULL,
+                    UNIQUE(donante_id, campana_id)
+                );
+            """)
+    finally:
+        conn.close()
 
-    # ----- SQLite local -----
-    conn = get_db_connection()
-    cur = conn.cursor()
 
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS donantes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            dni TEXT NOT NULL UNIQUE,
-            nombre TEXT NOT NULL,
-            fecha_nacimiento TEXT NOT NULL,
-            genero TEXT NOT NULL,
-            grupo_sanguineo TEXT NOT NULL,
-            factor_rh TEXT NOT NULL,
-            estado_validacion TEXT NOT NULL,
-            localidad TEXT NOT NULL,
-            email TEXT NOT NULL,
-            telefono TEXT NOT NULL,
-            password TEXT NOT NULL
-        )
-        """
+# ---------------------------------------------------------------------------
+# Utilidades clínicas (edad y elegibilidad)
+# ---------------------------------------------------------------------------
+def calcular_edad(fecha_nacimiento: str, referencia: Optional[datetime] = None) -> Optional[int]:
+    """Devuelve la edad en años a partir de una fecha 'YYYY-MM-DD', o None si es inválida."""
+    hoy = (referencia or datetime.now()).date()
+    try:
+        f_nac = datetime.strptime(fecha_nacimiento, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+    return hoy.year - f_nac.year - ((hoy.month, hoy.day) < (f_nac.month, f_nac.day))
+
+
+def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[str]) -> tuple[str, str]:
+    """Determina el estado clínico del donante: Apto, En espera o No apto.
+
+    Si hay una decisión médica manual cargada, esa decisión tiene prioridad
+    sobre el cálculo automático.
+    """
+    if donante["estado_manual"] != "Automatico":
+        return donante["estado_manual"], donante["observaciones_medicas"] or "Decisión médica manual."
+
+    edad = calcular_edad(donante["fecha_nacimiento"])
+    if edad is None:
+        return "No apto", "Fecha de nacimiento inválida."
+    if edad < EDAD_MINIMA or edad > EDAD_MAXIMA:
+        return "No apto", f"Edad no permitida ({edad} años). Rango legal: {EDAD_MINIMA}-{EDAD_MAXIMA}."
+
+    hoy = datetime.now().date()
+    for campo in ("fecha_ultimo_tatuaje", "fecha_ultimo_piercing"):
+        valor = donante[campo] if campo in donante.keys() else None
+        if not valor:
+            continue
+        try:
+            fecha = datetime.strptime(valor, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if (hoy - fecha).days < 365:
+            return "No apto", "Inhabilitación temporal: debe esperar 12 meses desde su último tatuaje/piercing."
+
+    if donante["toma_medicacion"]:
+        return "No apto", "Inhabilitación temporal: requiere evaluación médica presencial."
+
+    if ultima_donacion_str:
+        try:
+            ultima_don = datetime.strptime(ultima_donacion_str, "%Y-%m-%d").date()
+            intervalo = VENTANA_DIAS.get(donante["genero"], 90)
+            fecha_regreso = ultima_don + timedelta(days=intervalo)
+            if hoy < fecha_regreso:
+                dias_restantes = (fecha_regreso - hoy).days
+                return "En espera", f"Faltan {dias_restantes} días. Podrás volver a donar el {fecha_regreso.strftime('%d/%m/%Y')}."
+        except ValueError:
+            pass
+
+    return "Apto", "El donante cumple con los requisitos legales actuales."
+
+
+def obtener_historial(donante_id: int) -> list[sqlite3.Row]:
+    return get_db().execute(
+        "SELECT * FROM donaciones WHERE donante_id = ? ORDER BY fecha_donacion DESC",
+        (donante_id,),
+    ).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Filtro de fecha reutilizable en las plantillas
+# ---------------------------------------------------------------------------
+@app.template_filter("fecha_legible")
+def fecha_legible(valor: str) -> str:
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        return valor or "—"
+
+
+# ---------------------------------------------------------------------------
+# Páginas públicas
+# ---------------------------------------------------------------------------
+@app.route("/")
+def index():
+    db = get_db()
+    total_donantes = db.execute("SELECT COUNT(*) FROM donantes").fetchone()[0]
+    total_donaciones = db.execute("SELECT COUNT(*) FROM donaciones").fetchone()[0]
+    campanas = db.execute(
+        "SELECT * FROM campanas WHERE fecha >= date('now') ORDER BY fecha ASC LIMIT 6"
+    ).fetchall()
+    campanas = [dict(c, fecha_legible=fecha_legible(c["fecha"])) for c in campanas]
+    return render_template(
+        "landing.html",
+        total_donantes=total_donantes,
+        total_donaciones=total_donaciones,
+        campanas=campanas,
     )
 
-    # Compatibilidad: si ya existía sin "nombre"
-    try:
-        cur.execute("ALTER TABLE donantes ADD COLUMN nombre TEXT")
-        cur.execute("UPDATE donantes SET nombre='Sin nombre' WHERE nombre IS NULL OR TRIM(nombre)=''")
-    except sqlite3.OperationalError:
-        pass
 
-    # Migración desde tabla vieja patients SOLO si donantes está vacía
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='patients'")
-    exists_patients = cur.fetchone() is not None
-
-    cur.execute("SELECT COUNT(*) FROM donantes")
-    count_donantes = cur.fetchone()[0]
-
-    if exists_patients and count_donantes == 0:
-        rows = conn.execute("SELECT id, name, age, blood_type FROM patients ORDER BY id ASC").fetchall()
-        for r in rows:
-            fake_dni = f"LEGACY-{r['id']}"
-            nombre = (r["name"] or "Sin nombre").strip()
-            fecha = "2000-01-01"
-            genero = "M"
-
-            bt = (r["blood_type"] or "O+").strip()
-            grupo = bt[:-1] if len(bt) >= 2 else "O"
-            rh = bt[-1] if bt[-1] in ["+", "-"] else "+"
-
-            estado = "activo"
-            localidad = "Otra"
-            email = f"legacy{r['id']}@demo.local"
-            telefono = "0000000000"
-            password = "demo"
-
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO donantes
-                    (dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh, estado_validacion,
-                     localidad, email, telefono, password)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (fake_dni, nombre, fecha, genero, grupo, rh, estado, localidad, email, telefono, password),
-                )
-            except sqlite3.IntegrityError:
-                pass
-
-    conn.commit()
-    conn.close()
+@app.route("/registro", methods=["GET", "POST"])
+def registro():
+    if request.method == "POST":
+        db = get_db()
+        f_tat = request.form.get("fecha_ultimo_tatuaje") or None
+        f_pier = request.form.get("fecha_ultimo_piercing") or None
+        toma_medicacion = 1 if request.form.get("toma_medicacion") else 0
+        try:
+            db.execute(
+                """INSERT INTO donantes
+                   (dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh,
+                    localidad, email, telefono, password_hash,
+                    fecha_ultimo_tatuaje, fecha_ultimo_piercing, toma_medicacion)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    request.form["dni"], request.form["nombre"], request.form["fecha_nacimiento"],
+                    request.form["genero"], request.form["grupo_sanguineo"], request.form["factor_rh"],
+                    request.form["localidad"], request.form["email"], request.form["telefono"],
+                    generate_password_hash(request.form["password"]),
+                    f_tat, f_pier, toma_medicacion,
+                ),
+            )
+            db.commit()
+            flash("Registro exitoso. Ya podés iniciar sesión.", "success")
+            return redirect(url_for("login"))
+        except sqlite3.IntegrityError:
+            flash("Error: el DNI o el correo ya están registrados.", "warning")
+    return render_template(
+        "registro.html", localidades=LOCALIDADES, blood_groups=BLOOD_GROUPS, rh_options=RH_OPTIONS
+    )
 
 
-def calcular_edad(fecha_yyyy_mm_dd: str) -> int | None:
-    try:
-        y, m, d = fecha_yyyy_mm_dd.split("-")
-        y = int(y); m = int(m); d = int(d)
-    except Exception:
-        return None
-
-    import datetime as _dt
-    hoy = _dt.date.today()
-    try:
-        nac = _dt.date(y, m, d)
-    except Exception:
-        return None
-
-    return hoy.year - nac.year - ((hoy.month, hoy.day) < (nac.month, nac.day))
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        res = get_db().execute("SELECT * FROM donantes WHERE email = ?", (email,)).fetchone()
+        if res and check_password_hash(res["password_hash"], password):
+            session["user_id"] = res["id"]
+            session["user_name"] = res["nombre"]
+            return redirect(url_for("perfil_donante"))
+        flash("Credenciales incorrectas.", "danger")
+    return render_template("login.html")
 
 
-def validar_dni(dni: str) -> bool:
-    return dni.isdigit() and 7 <= len(dni) <= 10
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 
-# ✅ LANDING
-@app.route("/", methods=["GET"])
-def index():
-    return render_template("landing.html")
+# ---------------------------------------------------------------------------
+# Portal del donante
+# ---------------------------------------------------------------------------
+@app.route("/mi-portal")
+def perfil_donante():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    db = get_db()
+    donante = db.execute("SELECT * FROM donantes WHERE id = ?", (session["user_id"],)).fetchone()
+    if donante is None:
+        session.clear()
+        return redirect(url_for("login"))
 
+    historial = obtener_historial(donante["id"])
+    ultima_donacion_str = historial[0]["fecha_donacion"] if historial else None
+    estado, motivo = calcular_elegibilidad(donante, ultima_donacion_str)
 
-# ✅ LISTADO + BUSCADOR
-@app.route("/donantes", methods=["GET"])
-def donantes():
-    init_db_if_missing()
-
-    q_dni = (request.args.get("dni") or "").strip()
-    q_nombre = (request.args.get("nombre") or "").strip()
-    q_localidad = (request.args.get("localidad") or "").strip()
-    q_grupo = (request.args.get("grupo") or "").strip()
-    q_rh = (request.args.get("rh") or "").strip()
-    q_estado = (request.args.get("estado") or "").strip()
-
-    where = []
-    params: list[Any] = []
-
-    if q_dni:
-        where.append(f"dni LIKE {ph()}")
-        params.append(f"%{q_dni}%")
-
-    if q_nombre:
-        where.append(f"LOWER(nombre) LIKE {ph()}")
-        params.append(f"%{q_nombre.lower()}%")
-
-    if q_localidad:
-        where.append(f"localidad = {ph()}")
-        params.append(q_localidad)
-
-    if q_grupo:
-        where.append(f"grupo_sanguineo = {ph()}")
-        params.append(q_grupo)
-
-    if q_rh:
-        where.append(f"factor_rh = {ph()}")
-        params.append(q_rh)
-
-    if q_estado:
-        where.append(f"estado_validacion = {ph()}")
-        params.append(q_estado)
-
-    sql = """
-        SELECT id, dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh,
-               estado_validacion, localidad, email, telefono
-        FROM donantes
-    """
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY id DESC"
-
-    rows = fetch_all(sql, params)
-    total_row = fetch_one("SELECT COUNT(*) AS c FROM donantes")
-    total = int(total_row["c"]) if total_row else 0
+    campanas = db.execute(
+        "SELECT * FROM campanas WHERE localidad = ? AND fecha >= date('now') ORDER BY fecha ASC",
+        (donante["localidad"],),
+    ).fetchall()
+    turnos = db.execute(
+        """SELECT t.hora, c.titulo FROM turnos t
+           JOIN campanas c ON t.campana_id = c.id
+           WHERE t.donante_id = ?""",
+        (donante["id"],),
+    ).fetchall()
 
     return render_template(
-        "index.html",
-        rows=rows,
+        "portal_donante.html",
+        donante=donante,
+        edad=calcular_edad(donante["fecha_nacimiento"]),
+        estado=estado,
+        motivo=motivo,
+        campanas=campanas,
+        historial=historial,
+        turnos=turnos,
+    )
+
+
+@app.route("/reservar-turno", methods=["POST"])
+def reservar_turno():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO turnos (donante_id, campana_id, hora) VALUES (?, ?, ?)",
+            (session["user_id"], request.form.get("campana_id"), request.form.get("hora")),
+        )
+        db.commit()
+        flash("Turno reservado con éxito.", "success")
+    except sqlite3.IntegrityError:
+        flash("Ya tenés un turno reservado en esa campaña.", "warning")
+    return redirect(url_for("perfil_donante"))
+
+
+# ---------------------------------------------------------------------------
+# Panel administrativo
+# ---------------------------------------------------------------------------
+def admin_requerido():
+    return session.get("admin_logged", False)
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        usuario = request.form.get("username", "")
+        clave = request.form.get("password", "")
+        if usuario == ADMIN_USER and clave == ADMIN_PASSWORD:
+            session["admin_logged"] = True
+            return redirect(url_for("admin_dashboard"))
+        flash("Credenciales incorrectas.", "danger")
+    return render_template("admin_login.html")
+
+
+@app.route("/admin")
+def admin_dashboard():
+    if not admin_requerido():
+        return redirect(url_for("admin_login"))
+
+    db = get_db()
+    q = request.args.get("q", "").strip()
+    grupo = request.args.get("grupo", "").strip()
+    localidad = request.args.get("localidad", "").strip()
+    edad_min = request.args.get("edad_min", "").strip()
+    edad_max = request.args.get("edad_max", "").strip()
+    pagina = max(1, request.args.get("pagina", 1, type=int))
+
+    condiciones, parametros = [], []
+    if q:
+        condiciones.append("(nombre LIKE ? OR dni LIKE ?)")
+        parametros += [f"%{q}%", f"%{q}%"]
+    if grupo:
+        condiciones.append("grupo_sanguineo = ?")
+        parametros.append(grupo)
+    if localidad:
+        condiciones.append("localidad = ?")
+        parametros.append(localidad)
+
+    where_sql = f"WHERE {' AND '.join(condiciones)}" if condiciones else ""
+    filas = db.execute(f"SELECT * FROM donantes {where_sql} ORDER BY id DESC", parametros).fetchall()
+
+    # El rango de edad se filtra en memoria porque la edad se deriva de la fecha de nacimiento.
+    resultado = []
+    for fila in filas:
+        edad = calcular_edad(fila["fecha_nacimiento"]) or 0
+        if edad_min and edad < int(edad_min):
+            continue
+        if edad_max and edad > int(edad_max):
+            continue
+        historial = obtener_historial(fila["id"])
+        ultima = historial[0]["fecha_donacion"] if historial else None
+        estado, _ = calcular_elegibilidad(fila, ultima)
+        resultado.append({**dict(fila), "edad": edad, "estado_calculado": estado})
+
+    total = len(resultado)
+    total_paginas = max(1, (total + DONANTES_POR_PAGINA - 1) // DONANTES_POR_PAGINA)
+    pagina = min(pagina, total_paginas)
+    inicio = (pagina - 1) * DONANTES_POR_PAGINA
+    donantes_pagina = resultado[inicio:inicio + DONANTES_POR_PAGINA]
+
+    campanas = db.execute("SELECT * FROM campanas ORDER BY fecha DESC").fetchall()
+
+    return render_template(
+        "admin_dashboard.html",
+        donantes=donantes_pagina,
+        campanas=campanas,
         total=total,
-        localidades=LOCALIDADES,
+        pagina=pagina,
+        total_paginas=total_paginas,
         blood_groups=BLOOD_GROUPS,
-        rh_options=RH_OPTIONS,
-        q_dni=q_dni,
-        q_nombre=q_nombre,
-        q_localidad=q_localidad,
-        q_grupo=q_grupo,
-        q_rh=q_rh,
-        q_estado=q_estado,
+        localidades=LOCALIDADES,
+        filtros_activos=bool(q or grupo or localidad or edad_min or edad_max),
     )
 
 
-# ✅ FICHA / DETALLE DEL DONANTE
-@app.route("/donantes/<int:donante_id>", methods=["GET"])
-def donante_detalle(donante_id: int):
-    init_db_if_missing()
+@app.route("/admin/paciente/<int:id>", methods=["GET", "POST"])
+def admin_detalle_paciente(id):
+    if not admin_requerido():
+        return redirect(url_for("admin_login"))
 
-    d = fetch_one(
-        f"""
-        SELECT id, dni, nombre, fecha_nacimiento, genero,
-               grupo_sanguineo, factor_rh, estado_validacion,
-               localidad, email, telefono
-        FROM donantes
-        WHERE id = {ph()}
-        """,
-        (donante_id,),
-    )
+    db = get_db()
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "update_status":
+            db.execute(
+                "UPDATE donantes SET estado_manual = ?, observaciones_medicas = ? WHERE id = ?",
+                (request.form.get("estado_manual"), request.form.get("observaciones_medicas"), id),
+            )
+            db.commit()
+            flash("Estado actualizado.", "success")
+        elif action == "add_donation":
+            db.execute(
+                "INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones) VALUES (?, ?, ?, ?)",
+                (id, request.form.get("fecha_donacion"), request.form.get("volumen_ml") or None,
+                 request.form.get("observaciones")),
+            )
+            db.execute("UPDATE donantes SET estado_manual = 'Automatico' WHERE id = ?", (id,))
+            db.commit()
+            flash("Donación registrada y estado recalculado.", "success")
 
+    d = db.execute("SELECT * FROM donantes WHERE id = ?", (id,)).fetchone()
     if d is None:
         flash("Donante no encontrado.", "warning")
-        return redirect(url_for("donantes"))
+        return redirect(url_for("admin_dashboard"))
 
-    return render_template("donante_detalle.html", d=d)
+    historial = obtener_historial(id)
+    ultima_donacion_str = historial[0]["fecha_donacion"] if historial else None
+    estado, motivo = calcular_elegibilidad(d, ultima_donacion_str)
 
-
-# ✅ CARGAR DONANTE
-@app.route("/donantes/nuevo", methods=["GET", "POST"])
-def donantes_nuevo():
-    init_db_if_missing()
-
-    if request.method == "POST":
-        nombre = (request.form.get("nombre") or "").strip()
-        dni = (request.form.get("dni") or "").strip()
-        fecha_nacimiento = (request.form.get("fecha_nacimiento") or "").strip()
-        genero = (request.form.get("genero") or "").strip()
-        grupo = (request.form.get("grupo_sanguineo") or "").strip()
-        rh = (request.form.get("factor_rh") or "").strip()
-        localidad = (request.form.get("localidad") or "").strip()
-        email = (request.form.get("email") or "").strip()
-        telefono = (request.form.get("telefono") or "").strip()
-        password = (request.form.get("password") or "").strip()
-
-        if not nombre:
-            flash("El nombre es obligatorio.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if not validar_dni(dni):
-            flash("DNI inválido. Usá solo números (7 a 10 dígitos).", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        edad = calcular_edad(fecha_nacimiento)
-        if edad is None:
-            flash("Fecha de nacimiento inválida.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-        if edad < 18 or edad > 65:
-            flash("Edad fuera de rango: solo 18 a 65 años.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if genero not in GENDERS:
-            flash("Género inválido.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if grupo not in BLOOD_GROUPS:
-            flash("Grupo sanguíneo inválido.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if rh not in RH_OPTIONS:
-            flash("Factor RH inválido.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if localidad not in LOCALIDADES:
-            flash("Localidad inválida.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if not email or "@" not in email:
-            flash("Email inválido.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if not telefono:
-            flash("Teléfono/WhatsApp es obligatorio.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        if len(password) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        estado_validacion = "pendiente_validacion" if rh == "NS" else "activo"
-
-        try:
-            execute(
-                f"""
-                INSERT INTO donantes
-                (dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh, estado_validacion,
-                 localidad, email, telefono, password)
-                VALUES ({ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()}, {ph()})
-                """,
-                (dni, nombre, fecha_nacimiento, genero, grupo, rh, estado_validacion, localidad, email, telefono, password),
-            )
-        except Exception as e:
-            msg = str(e).lower()
-            if "unique" in msg or "duplicate" in msg:
-                flash("Ese DNI ya está registrado.", "warning")
-            else:
-                flash("Error al guardar el donante.", "warning")
-            return redirect(url_for("donantes_nuevo"))
-
-        flash("Donante registrado correctamente.", "success")
-        return redirect(url_for("donantes"))
-
-    return render_template(
-        "new.html",
-        localidades=LOCALIDADES,
-        blood_groups=BLOOD_GROUPS,
-        rh_options=RH_OPTIONS,
-    )
+    return render_template("admin_detalle.html", d=d, historial=historial, estado=estado, motivo=motivo)
 
 
-# ✅ Reset DB (demo)
-@app.route("/reset-db", methods=["POST"])
-def reset_db():
-    if is_postgres():
-        execute("DROP TABLE IF EXISTS donantes;")
-        init_db_if_missing()
-        flash("Base reiniciada (PostgreSQL).", "info")
-        return redirect(url_for("donantes"))
-
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-    init_db_if_missing()
-    flash("Base reiniciada (SQLite).", "info")
-    return redirect(url_for("donantes"))
-
+init_db_if_missing()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+    app.run(debug=True)
