@@ -32,6 +32,8 @@
           <div><dt>Último tatuaje</dt><dd>{{ d.fecha_ultimo_tatuaje or "—" }}</dd></div>
           <div><dt>Último piercing</dt><dd>{{ d.fecha_ultimo_piercing or "—" }}</dd></div>
           <div><dt>Medicación</dt><dd>{{ "Sí" if d.toma_medicacion else "No" }}</dd></div>
+          <div><dt>Peso</dt><dd>{{ (d.peso_kg ~ ' kg') if d.peso_kg else 'Sin registrar' }}</dd></div>
+          <div><dt>Embarazo</dt><dd>{{ "Sí" if d.embarazo else "No" }}</dd></div>
         </dl>
       </div>
 

@@ -88,9 +88,16 @@ def crear_esquema(conn: sqlite3.Connection) -> None:
                 observaciones_medicas TEXT DEFAULT '',
                 fecha_ultimo_tatuaje TEXT,
                 fecha_ultimo_piercing TEXT,
-                toma_medicacion BOOLEAN DEFAULT 0
+                toma_medicacion BOOLEAN DEFAULT 0,
+                peso_kg REAL,
+                embarazo BOOLEAN DEFAULT 0
             );
         """)
+        columnas_donantes = {fila[1] for fila in conn.execute("PRAGMA table_info(donantes)")}
+        if "peso_kg" not in columnas_donantes:
+            conn.execute("ALTER TABLE donantes ADD COLUMN peso_kg REAL")
+        if "embarazo" not in columnas_donantes:
+            conn.execute("ALTER TABLE donantes ADD COLUMN embarazo BOOLEAN DEFAULT 0")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS donaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,6 +192,8 @@ def generar_donante(rng: random.Random, dnis_usados: set[str], emails_usados: se
         fecha_piercing = (date.today() - timedelta(days=dias_atras)).isoformat()
 
     toma_medicacion = 1 if rng.random() < 0.07 else 0
+    peso_kg = round(rng.uniform(48, 105), 1)
+    embarazo = 1 if genero == "F" and rng.random() < 0.03 else 0
 
     # Un pequeño grupo con decisión médica manual, para reflejar casos reales de excepción.
     estado_manual, observaciones = "Automatico", ""
@@ -209,6 +218,8 @@ def generar_donante(rng: random.Random, dnis_usados: set[str], emails_usados: se
         "fecha_ultimo_tatuaje": fecha_tatuaje,
         "fecha_ultimo_piercing": fecha_piercing,
         "toma_medicacion": toma_medicacion,
+        "peso_kg": peso_kg,
+        "embarazo": embarazo,
     }
 
 
@@ -229,13 +240,14 @@ def poblar_donantes(conn: sqlite3.Connection, cantidad: int, rng: random.Random)
                 """INSERT INTO donantes
                    (dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh, localidad,
                     email, telefono, password_hash, estado_manual, observaciones_medicas,
-                    fecha_ultimo_tatuaje, fecha_ultimo_piercing, toma_medicacion)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    fecha_ultimo_tatuaje, fecha_ultimo_piercing, toma_medicacion, peso_kg, embarazo)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     d["dni"], d["nombre"], d["fecha_nacimiento"], d["genero"], d["grupo_sanguineo"],
                     d["factor_rh"], d["localidad"], d["email"], d["telefono"], password_hash,
                     d["estado_manual"], d["observaciones_medicas"],
                     d["fecha_ultimo_tatuaje"], d["fecha_ultimo_piercing"], d["toma_medicacion"],
+                    d["peso_kg"], d["embarazo"],
                 ),
             )
             ids_insertados.append((cur.lastrowid, d["genero"]))

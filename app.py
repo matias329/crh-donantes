@@ -53,6 +53,12 @@ LOCALIDADES = [
     "San Salvador de Jujuy", "Palpalá", "Perico", "El Carmen",
     "Libertador", "Humahuaca", "Tilcara", "Otra",
 ]
+ZONAS = {
+    "Valles": ["San Salvador de Jujuy", "Palpalá", "Perico", "El Carmen"],
+    "Yungas y Ramal": ["Libertador"],
+    "Quebrada": ["Humahuaca", "Tilcara"],
+    "Otras": ["Otra"],
+}
 
 ESTADOS_AYUDA = {
     "Automatico": "Estado evaluado automáticamente según edad, antecedentes declarados y última donación.",
@@ -63,8 +69,10 @@ ESTADOS_AYUDA = {
     "En espera": "Todavía no se cumplió el intervalo requerido desde la última donación.",
 }
 
-# Ventanas sanitarias mínimas entre donaciones, en días, según género.
-VENTANA_DIAS = {"M": 90, "F": 120}
+# Preselección basada en criterios nacionales publicados. La aptitud final
+# siempre corresponde al equipo profesional en la entrevista presencial.
+VENTANA_DIAS = {"M": 60, "F": 60}
+MAX_DONACIONES_ANUALES = {"M": 4, "F": 3}
 EDAD_MINIMA = 18
 EDAD_MAXIMA = 65
 DONANTES_POR_PAGINA = 15
@@ -237,9 +245,16 @@ def init_db_if_missing() -> None:
                     observaciones_medicas TEXT DEFAULT '',
                     fecha_ultimo_tatuaje TEXT,
                     fecha_ultimo_piercing TEXT,
-                    toma_medicacion BOOLEAN DEFAULT 0
+                    toma_medicacion BOOLEAN DEFAULT 0,
+                    peso_kg REAL,
+                    embarazo BOOLEAN DEFAULT 0
                 );
             """)
+            columnas_donantes = {fila[1] for fila in conn.execute("PRAGMA table_info(donantes)")}
+            if "peso_kg" not in columnas_donantes:
+                conn.execute("ALTER TABLE donantes ADD COLUMN peso_kg REAL")
+            if "embarazo" not in columnas_donantes:
+                conn.execute("ALTER TABLE donantes ADD COLUMN embarazo BOOLEAN DEFAULT 0")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS donaciones (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,7 +307,7 @@ def calcular_edad(fecha_nacimiento: str, referencia: Optional[datetime] = None) 
     return hoy.year - f_nac.year - ((hoy.month, hoy.day) < (f_nac.month, f_nac.day))
 
 
-def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[str]) -> tuple[str, str]:
+def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[str], historial=None) -> tuple[str, str]:
     """Determina el estado clínico del donante: Apto, En espera o No apto.
 
     Si hay una decisión médica manual cargada, esa decisión tiene prioridad
@@ -304,8 +319,18 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
     edad = calcular_edad(donante["fecha_nacimiento"])
     if edad is None:
         return "No apto", "Fecha de nacimiento inválida."
-    if edad < EDAD_MINIMA or edad > EDAD_MAXIMA:
-        return "No apto", f"Edad no permitida ({edad} años). Rango legal: {EDAD_MINIMA}-{EDAD_MAXIMA}."
+    if edad < EDAD_MINIMA:
+        return "No apto", "Menor de 18 años: requiere autorización y evaluación profesional."
+    if edad > EDAD_MAXIMA:
+        return "No apto", "Mayor de 65 años: requiere certificado médico y evaluación profesional."
+
+    peso = donante["peso_kg"] if "peso_kg" in donante.keys() else None
+    if peso is None:
+        return "No apto", "Falta registrar el peso para completar la preclasificación."
+    if peso <= 50:
+        return "No apto", "El requisito general es pesar más de 50 kg."
+    if "embarazo" in donante.keys() and donante["embarazo"]:
+        return "No apto", "El embarazo impide donar según los criterios generales de preselección."
 
     hoy = datetime.now().date()
     for campo in ("fecha_ultimo_tatuaje", "fecha_ultimo_piercing"):
@@ -320,12 +345,25 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
             return "No apto", "Inhabilitación temporal: debe esperar 12 meses desde su último tatuaje/piercing."
 
     if donante["toma_medicacion"]:
-        return "No apto", "Inhabilitación temporal: requiere evaluación médica presencial."
+        return "No apto", "La medicación declarada requiere evaluación profesional antes de donar."
+
+    if historial:
+        limite = datetime.now().date() - timedelta(days=365)
+        donaciones_periodo = 0
+        for item in historial:
+            try:
+                if datetime.strptime(item["fecha_donacion"], "%Y-%m-%d").date() >= limite:
+                    donaciones_periodo += 1
+            except (ValueError, TypeError):
+                continue
+        maximo = MAX_DONACIONES_ANUALES.get(donante["genero"], 3)
+        if donaciones_periodo >= maximo:
+            return "En espera", f"Alcanzó el máximo de {maximo} donaciones en los últimos 12 meses."
 
     if ultima_donacion_str:
         try:
             ultima_don = datetime.strptime(ultima_donacion_str, "%Y-%m-%d").date()
-            intervalo = VENTANA_DIAS.get(donante["genero"], 90)
+            intervalo = VENTANA_DIAS.get(donante["genero"], 60)
             fecha_regreso = ultima_don + timedelta(days=intervalo)
             if hoy < fecha_regreso:
                 dias_restantes = (fecha_regreso - hoy).days
@@ -333,7 +371,7 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
         except ValueError:
             pass
 
-    return "Apto", "El donante cumple con los requisitos legales actuales."
+    return "Apto", "Cumple la preselección automática; la aptitud final se confirma en la entrevista profesional."
 
 
 def obtener_historial(donante_id: int) -> list[sqlite3.Row]:
@@ -374,7 +412,7 @@ def validar_nueva_donacion(
     # 2) Elegibilidad clínica automática vigente (no depende de la fecha
     # cargada, sino del estado actual del donante).
     ultima_str_actual = historial[0]["fecha_donacion"] if historial else None
-    estado_actual, motivo_actual = calcular_elegibilidad(donante, ultima_str_actual)
+    estado_actual, motivo_actual = calcular_elegibilidad(donante, ultima_str_actual, historial)
     if estado_actual == "No apto":
         return False, f"El donante no está apto para donar: {motivo_actual}"
 
@@ -397,7 +435,7 @@ def validar_nueva_donacion(
             fecha_anterior = None
 
         if fecha_anterior is not None:
-            intervalo = VENTANA_DIAS.get(donante["genero"], 90)
+            intervalo = VENTANA_DIAS.get(donante["genero"], 60)
             dias_transcurridos = (fecha_nueva - fecha_anterior).days
             if dias_transcurridos < intervalo:
                 fecha_habilitada = fecha_anterior + timedelta(days=intervalo)
@@ -462,6 +500,8 @@ def registro():
         f_tat = request.form.get("fecha_ultimo_tatuaje") or None
         f_pier = request.form.get("fecha_ultimo_piercing") or None
         toma_medicacion = 1 if request.form.get("toma_medicacion") else 0
+        embarazo = 1 if request.form.get("embarazo") else 0
+        peso = request.form.get("peso_kg", type=float)
 
         nombre = request.form.get("nombre", "").strip()
         password = request.form.get("password", "")
@@ -477,6 +517,8 @@ def registro():
         if genero not in GENDERS: errores.append("El género seleccionado no es válido.")
         if grupo not in BLOOD_GROUPS or factor not in RH_OPTIONS: errores.append("El grupo sanguíneo no es válido.")
         if localidad not in LOCALIDADES: errores.append("La localidad seleccionada no es válida.")
+        if peso is None or not 30 <= peso <= 250: errores.append("Ingresá un peso válido entre 30 y 250 kg.")
+        if embarazo and genero != "F": errores.append("Revisá el dato de embarazo y género seleccionado.")
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email): errores.append("El correo electrónico no es válido.")
         if len(password) < 10: errores.append("La contraseña debe tener al menos 10 caracteres.")
         if errores:
@@ -504,13 +546,13 @@ def registro():
                         """INSERT INTO donantes
                            (dni, nombre, fecha_nacimiento, genero, grupo_sanguineo, factor_rh,
                             localidad, email, telefono, password_hash,
-                            fecha_ultimo_tatuaje, fecha_ultimo_piercing, toma_medicacion)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            fecha_ultimo_tatuaje, fecha_ultimo_piercing, toma_medicacion, peso_kg, embarazo)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             dni, nombre, fecha_nacimiento, genero, grupo, factor,
                             localidad, email, request.form.get("telefono", "").strip(),
                             generate_password_hash(password),
-                            f_tat, f_pier, toma_medicacion,
+                            f_tat, f_pier, toma_medicacion, peso, embarazo,
                         ),
                     )
                     db.commit()
@@ -667,7 +709,7 @@ def perfil_donante():
 
     historial = obtener_historial(donante["id"])
     ultima_donacion_str = historial[0]["fecha_donacion"] if historial else None
-    estado, motivo = calcular_elegibilidad(donante, ultima_donacion_str)
+    estado, motivo = calcular_elegibilidad(donante, ultima_donacion_str, historial)
 
     campanas = db.execute(
         "SELECT * FROM campanas WHERE publicada = 1 AND localidad = ? AND fecha >= date('now') ORDER BY fecha ASC",
@@ -776,6 +818,8 @@ def editar_perfil():
         f_tat = request.form.get("fecha_ultimo_tatuaje") or None
         f_pier = request.form.get("fecha_ultimo_piercing") or None
         toma_medicacion = 1 if request.form.get("toma_medicacion") else 0
+        embarazo = 1 if request.form.get("embarazo") else 0
+        peso = request.form.get("peso_kg", type=float)
 
         password_actual = request.form.get("password_actual", "")
         password_nueva = request.form.get("password_nueva", "")
@@ -784,6 +828,8 @@ def editar_perfil():
         errores = []
         if not nombre or not email or not localidad:
             errores.append("Nombre, correo y localidad son obligatorios.")
+        if peso is None or not 30 <= peso <= 250:
+            errores.append("Ingresá un peso válido entre 30 y 250 kg.")
 
         cambia_password = bool(password_nueva or password_confirmar or password_actual)
         if cambia_password:
@@ -804,9 +850,9 @@ def editar_perfil():
                         """UPDATE donantes
                            SET nombre = ?, email = ?, telefono = ?, localidad = ?,
                                fecha_ultimo_tatuaje = ?, fecha_ultimo_piercing = ?,
-                               toma_medicacion = ?, password_hash = ?
+                               toma_medicacion = ?, peso_kg = ?, embarazo = ?, password_hash = ?
                            WHERE id = ?""",
-                        (nombre, email, telefono, localidad, f_tat, f_pier, toma_medicacion,
+                        (nombre, email, telefono, localidad, f_tat, f_pier, toma_medicacion, peso, embarazo,
                          generate_password_hash(password_nueva), donante["id"]),
                     )
                 else:
@@ -814,9 +860,9 @@ def editar_perfil():
                         """UPDATE donantes
                            SET nombre = ?, email = ?, telefono = ?, localidad = ?,
                                fecha_ultimo_tatuaje = ?, fecha_ultimo_piercing = ?,
-                               toma_medicacion = ?
+                               toma_medicacion = ?, peso_kg = ?, embarazo = ?
                            WHERE id = ?""",
-                        (nombre, email, telefono, localidad, f_tat, f_pier, toma_medicacion,
+                        (nombre, email, telefono, localidad, f_tat, f_pier, toma_medicacion, peso, embarazo,
                          donante["id"]),
                     )
                 db.commit()
@@ -836,6 +882,7 @@ def editar_perfil():
             "nombre": nombre, "email": email, "telefono": telefono, "localidad": localidad,
             "fecha_ultimo_tatuaje": f_tat, "fecha_ultimo_piercing": f_pier,
             "toma_medicacion": toma_medicacion,
+            "peso_kg": peso, "embarazo": embarazo,
         })
 
     return render_template(
@@ -854,7 +901,7 @@ def reservar_turno():
     campana = db.execute("SELECT * FROM campanas WHERE id = ?", (campana_id,)).fetchone()
     historial = obtener_historial(donante["id"]) if donante else []
     ultima = historial[0]["fecha_donacion"] if historial else None
-    estado, _ = calcular_elegibilidad(donante, ultima) if donante else ("No apto", "")
+    estado, _ = calcular_elegibilidad(donante, ultima, historial) if donante else ("No apto", "")
     if (not donante or not campana or not campana["publicada"] or campana["fecha"] < datetime.now().date().isoformat()
             or campana["localidad"] != donante["localidad"] or estado not in ("Apto", "Apto Manual")
             or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", hora)):
@@ -939,7 +986,7 @@ def admin_dashboard():
             continue
         historial = obtener_historial(fila["id"])
         ultima = historial[0]["fecha_donacion"] if historial else None
-        estado, _ = calcular_elegibilidad(fila, ultima)
+        estado, _ = calcular_elegibilidad(fila, ultima, historial)
         resultado.append({**dict(fila), "edad": edad, "estado_calculado": estado})
 
     total = len(resultado)
@@ -1064,27 +1111,47 @@ def admin_estadisticas():
 @app.route("/admin/notificaciones")
 def admin_notificaciones():
     if not admin_requerido(): return redirect(url_for("admin_login"))
+    q = request.args.get("q", "").strip()
     grupo = request.args.get("grupo", "").strip()
     factor = request.args.get("factor", "").strip()
+    localidad = request.args.get("localidad", "").strip()
+    zona = request.args.get("zona", "").strip()
+    incluir_no_aptos = request.args.get("incluir_no_aptos") == "1"
     campana_id = request.args.get("campana_id", type=int)
     mensaje = request.args.get("mensaje", "").strip()
     db = get_db()
     condiciones, parametros = ["telefono IS NOT NULL", "TRIM(telefono) <> ''"], []
+    if q: condiciones.append("(nombre LIKE ? OR dni LIKE ?)"); parametros.extend([f"%{q}%", f"%{q}%"])
     if grupo in BLOOD_GROUPS: condiciones.append("grupo_sanguineo = ?"); parametros.append(grupo)
     if factor in RH_OPTIONS: condiciones.append("factor_rh = ?"); parametros.append(factor)
-    donantes = db.execute(f"SELECT id, nombre, telefono, grupo_sanguineo, factor_rh FROM donantes WHERE {' AND '.join(condiciones)} ORDER BY nombre", parametros).fetchall()
+    if localidad in LOCALIDADES: condiciones.append("localidad = ?"); parametros.append(localidad)
+    elif zona in ZONAS:
+        lugares = ZONAS[zona]
+        condiciones.append(f"localidad IN ({','.join('?' for _ in lugares)})")
+        parametros.extend(lugares)
+    donantes = db.execute(f"SELECT * FROM donantes WHERE {' AND '.join(condiciones)} ORDER BY nombre", parametros).fetchall()
     campanas = db.execute("SELECT * FROM campanas WHERE publicada=1 AND fecha >= date('now') ORDER BY fecha").fetchall()
     campana = db.execute("SELECT * FROM campanas WHERE id=?", (campana_id,)).fetchone() if campana_id else None
     if not mensaje and campana:
         mensaje = f"Centro Regional de Hemoterapia de Jujuy: te invitamos a {campana['titulo']} el {fecha_legible(campana['fecha'])}, {campana['horario']}, en {campana['ubicacion']} ({campana['localidad']})."
     filas = []
+    descartados = 0
     for d in donantes:
+        historial = obtener_historial(d["id"])
+        ultima = historial[0]["fecha_donacion"] if historial else None
+        estado, motivo = calcular_elegibilidad(d, ultima, historial)
+        if estado not in ("Apto", "Apto Manual") and not incluir_no_aptos:
+            descartados += 1
+            continue
         telefono = re.sub(r"\D", "", d["telefono"] or "")
         if telefono and not telefono.startswith("54"): telefono = "549" + telefono.lstrip("0")
         elif telefono.startswith("54") and not telefono.startswith("549"): telefono = "549" + telefono[2:].lstrip("0")
-        filas.append({**dict(d), "whatsapp_url": f"https://wa.me/{telefono}?text={quote(mensaje)}" if telefono and mensaje else ""})
+        filas.append({**dict(d), "estado_calculado": estado, "motivo_estado": motivo,
+                      "whatsapp_url": f"https://wa.me/{telefono}?text={quote(mensaje)}" if telefono and mensaje else ""})
     return render_template("admin_notificaciones.html", donantes=filas, campanas=campanas, mensaje=mensaje,
-                           blood_groups=BLOOD_GROUPS, rh_options=RH_OPTIONS, grupo=grupo, factor=factor, campana_id=campana_id)
+                           blood_groups=BLOOD_GROUPS, rh_options=RH_OPTIONS, localidades=LOCALIDADES,
+                           zonas=ZONAS, q=q, grupo=grupo, factor=factor, localidad=localidad, zona=zona,
+                           incluir_no_aptos=incluir_no_aptos, descartados=descartados, campana_id=campana_id)
 
 
 @app.route("/admin/paciente/<int:id>", methods=["GET", "POST"])
@@ -1165,7 +1232,7 @@ def admin_detalle_paciente(id):
 
     historial = obtener_historial(id)
     ultima_donacion_str = historial[0]["fecha_donacion"] if historial else None
-    estado, motivo = calcular_elegibilidad(d, ultima_donacion_str)
+    estado, motivo = calcular_elegibilidad(d, ultima_donacion_str, historial)
 
     return render_template(
         "admin_detalle.html", d=d, historial=historial, estado=estado, motivo=motivo,

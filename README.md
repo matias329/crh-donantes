@@ -17,6 +17,9 @@ personal del centro.
 - Preparación de mensajes individuales de WhatsApp filtrados por grupo y Rh.
 - Ayuda contextual para estados del donante y sección pública informativa.
 - Consultas públicas por WhatsApp dirigidas al +54 9 388 755-7004.
+- Filtros de WhatsApp por nombre/DNI, zona, localidad, grupo y factor Rh.
+- Preselección automática por edad, peso, embarazo, medicación declarada,
+  tatuajes/piercings, intervalo mínimo y máximo anual de donaciones.
 
 - **Diseño propio de punta a punta**: se crearon todas las plantillas
   (`templates/`) y la hoja de estilos (`static/css/estilo.css`), ya que el

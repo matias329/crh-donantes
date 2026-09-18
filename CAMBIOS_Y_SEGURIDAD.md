@@ -7,6 +7,10 @@ Esta copia conserva todos los archivos del proyecto original e incorpora:
 - constancias PDF con código interno y autorización por sesión;
 - enlaces individuales de WhatsApp con filtros por grupo y Rh;
 - explicaciones de estados y una guía pública de donación;
+- filtros de notificación por nombre/DNI, zona y localidad;
+- exclusión automática de notificaciones para personas no aptas o en espera;
+- peso y embarazo incorporados a la preselección;
+- intervalo mínimo de 60 días y control del máximo anual publicado por Nación;
 
 - protección CSRF en todos los formularios;
 - cierre de sesión mediante POST;
