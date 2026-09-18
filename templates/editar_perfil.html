@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block titulo %}Editar mi perfil · CRH Jujuy{% endblock %}
+{% block contenido %}
+<section class="seccion" style="padding-top:24px;">
+  <div class="envoltorio" style="max-width:720px;">
+    <h1 style="font-size:1.8rem;">Editar mi perfil</h1>
+    <p class="parrafo-guia">Actualizá tus datos de contacto. El DNI, la fecha de nacimiento, el género y el grupo sanguíneo no se pueden modificar desde acá; si necesitás corregirlos, contactate con el CRH.</p>
+
+    <form class="formulario" method="POST" style="max-width:100%;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="campo-fila">
+        <div class="campo">
+          <label>DNI</label>
+          <input type="text" value="{{ donante.dni }}" disabled>
+        </div>
+        <div class="campo">
+          <label for="nombre">Nombre y apellido</label>
+          <input type="text" id="nombre" name="nombre" value="{{ donante.nombre }}" required>
+        </div>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="email">Correo electrónico</label>
+          <input type="email" id="email" name="email" value="{{ donante.email }}" required>
+        </div>
+        <div class="campo">
+          <label for="telefono">Teléfono</label>
+          <input type="tel" id="telefono" name="telefono" value="{{ donante.telefono or '' }}">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="localidad">Localidad</label>
+        <select id="localidad" name="localidad" required>
+          {% for l in localidades %}
+            <option value="{{ l }}" {% if donante.localidad == l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="fecha_ultimo_tatuaje">Último tatuaje (si aplica)</label>
+          <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje" value="{{ donante.fecha_ultimo_tatuaje or '' }}">
+        </div>
+        <div class="campo">
+          <label for="fecha_ultimo_piercing">Último piercing (si aplica)</label>
+          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing" value="{{ donante.fecha_ultimo_piercing or '' }}">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label class="check-linea">
+          <input type="checkbox" name="toma_medicacion" value="1" {% if donante.toma_medicacion %}checked{% endif %}>
+          Actualmente tomo medicación de forma habitual
+        </label>
+      </div>
+
+      <hr style="border:none; border-top:1px solid var(--borde, #e5e0da); margin:28px 0;">
+
+      <h3 style="font-size:1.05rem; margin-bottom:6px;">Cambiar contraseña (opcional)</h3>
+      <p class="ayuda" style="margin-top:0 0 14px;">Dejá estos campos vacíos si no querés cambiar tu contraseña.</p>
+
+      <div class="campo">
+        <label for="password_actual">Contraseña actual</label>
+        <input type="password" id="password_actual" name="password_actual">
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label for="password_nueva">Nueva contraseña</label>
+          <input type="password" id="password_nueva" name="password_nueva" minlength="10">
+        </div>
+        <div class="campo">
+          <label for="password_confirmar">Confirmar nueva contraseña</label>
+          <input type="password" id="password_confirmar" name="password_confirmar" minlength="10">
+        </div>
+      </div>
+
+      <button type="submit" class="boton boton-primario boton-bloque">Guardar cambios</button>
+      <p class="ayuda" style="text-align:center; margin-top:14px;">
+        <a href="{{ url_for('perfil_donante') }}">Volver a mi portal</a>
+      </p>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -7,6 +7,7 @@
     <div class="seccion-titulo">
       <h1 style="font-size:1.6rem;">Donantes registrados</h1>
       <p>{{ total }} en total{% if filtros_activos %} · {{ donantes|length }} en esta página tras filtrar{% endif %}</p>
+      <div class="acciones-admin"><a class="boton boton-primario" href="{{ url_for('admin_campana_nueva') }}">Nueva campaña</a><a class="boton boton-secundario" href="{{ url_for('admin_estadisticas') }}">Ver estadísticas</a><a class="boton boton-secundario" href="{{ url_for('admin_notificaciones') }}">Notificar por WhatsApp</a></div>
     </div>
 
     <form class="filtros panel panel-chico" method="GET">
@@ -44,6 +45,8 @@
       {% if filtros_activos %}<a class="boton boton-secundario" href="{{ url_for('admin_dashboard') }}">Limpiar</a>{% endif %}
     </form>
 
+    <details class="panel leyenda-estados"><summary><strong>¿Qué significa cada estado?</strong></summary><div class="rejilla rejilla-2"><p><span class="insignia insignia-apto">Automático</span> {{ estados_ayuda.Automatico }}</p><p><span class="insignia insignia-apto">Apto manual</span> {{ estados_ayuda['Apto Manual'] }}</p><p><span class="insignia insignia-no-apto">No apto manual</span> {{ estados_ayuda['No Apto Manual'] }}</p><p><span class="insignia insignia-espera">En espera</span> {{ estados_ayuda['En espera'] }}</p></div></details>
+
     <div class="tabla-envoltorio">
       <table>
         <thead>
@@ -61,11 +64,11 @@
               <td>{{ d.localidad }}</td>
               <td>
                 {% if d.estado_calculado in ['Apto', 'Apto Manual'] %}
-                  <span class="insignia insignia-apto">{{ d.estado_calculado }}</span>
+                  <span class="insignia insignia-apto" title="{{ estados_ayuda.get(d.estado_calculado, '') }}">{{ d.estado_calculado }}</span>
                 {% elif d.estado_calculado == 'En espera' %}
-                  <span class="insignia insignia-espera">{{ d.estado_calculado }}</span>
+                  <span class="insignia insignia-espera" title="{{ estados_ayuda.get(d.estado_calculado, '') }}">{{ d.estado_calculado }}</span>
                 {% else %}
-                  <span class="insignia insignia-no-apto">{{ d.estado_calculado }}</span>
+                  <span class="insignia insignia-no-apto" title="{{ estados_ayuda.get(d.estado_calculado, '') }}">{{ d.estado_calculado }}</span>
                 {% endif %}
               </td>
               <td><a class="boton boton-secundario boton-chico" href="{{ url_for('admin_detalle_paciente', id=d.id) }}">Ver ficha</a></td>
@@ -96,15 +99,23 @@
     {% if campanas %}
       <div class="tabla-envoltorio">
         <table>
-          <thead><tr><th>Fecha</th><th>Título</th><th>Tipo</th><th>Ubicación</th><th>Localidad</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Título</th><th>Horario</th><th>Ubicación</th><th>Localidad</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
             {% for c in campanas %}
               <tr>
                 <td>{{ c.fecha }}</td>
                 <td>{{ c.titulo }}</td>
-                <td>{{ c.tipo }}</td>
+                <td>{{ c.horario }}</td>
                 <td>{{ c.ubicacion }}</td>
                 <td>{{ c.localidad }}</td>
+                <td>{{ 'Publicada' if c.publicada else 'Borrador' }}</td>
+                <td class="acciones-tabla">
+                  <a class="boton boton-secundario boton-chico" href="{{ url_for('admin_campana_editar', campana_id=c.id) }}">Editar</a>
+                  <form method="POST" action="{{ url_for('admin_campana_eliminar', campana_id=c.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="boton boton-peligro boton-chico" type="submit">Eliminar</button>
+                  </form>
+                </td>
               </tr>
             {% endfor %}
           </tbody>

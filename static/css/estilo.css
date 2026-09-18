@@ -103,6 +103,12 @@ a:hover { text-decoration: underline; }
   gap: 8px;
 }
 
+.nav-form { display: inline; margin: 0; }
+.nav-link-button {
+  appearance: none; border: 0; background: transparent; color: inherit;
+  cursor: pointer; font: inherit; padding: 0;
+}
+
 .nav-enlaces a {
   color: var(--tinta);
   font-size: 0.94rem;
@@ -471,4 +477,39 @@ tbody tr:hover { background: var(--crema); }
   gap: 8px;
   margin-top: 20px;
   justify-content: center;
+}
+
+/* ---------- Módulos administrativos y ayuda ---------- */
+.acciones-admin, .acciones-form, .acciones-tabla { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.acciones-tabla form { margin:0; }
+.ancho-form { max-width:760px; }
+.check { display:flex; gap:10px; align-items:center; margin:12px 0 22px; }
+.check input { width:auto; }
+.boton-peligro { background:#8f1d1d; color:#fff; }
+.boton-whatsapp { background:#147a45; color:#fff; }
+.kpi { background:var(--vino); color:#fff; border-radius:var(--radio); padding:24px; margin-bottom:22px; display:inline-flex; flex-direction:column; min-width:220px; }
+.kpi strong { font-family:var(--serif); font-size:2.5rem; }
+.graficos h2 { font-size:1.2rem; }
+.barra-fila { margin:15px 0; }
+.barra-fila > div:first-child { display:flex; justify-content:space-between; gap:12px; margin-bottom:5px; }
+.barra { height:12px; background:var(--crema); border-radius:999px; overflow:hidden; }
+.barra i { display:block; height:100%; min-width:3px; background:var(--vino); border-radius:inherit; }
+.barra i.barra-rh { background:#b84b5a; }
+.campo-ancho { flex-basis:100% !important; }
+.ayuda-estado { max-width:760px; padding:9px 12px; background:var(--crema); border-left:3px solid var(--vino); font-size:.85rem; color:var(--piedra); }
+.leyenda-estados { margin-bottom:20px; padding:14px 18px; }
+.leyenda-estados summary { cursor:pointer; }
+.leyenda-estados p { margin:10px 0 0; font-size:.86rem; color:var(--piedra); }
+.llamada-ayuda { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.llamada-ayuda h2, .llamada-ayuda p { margin-top:0; }
+.hero-corto { padding:55px 0; }
+.seccion-suave { background:var(--crema); }
+.pasos article b { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:var(--vino); color:#fff; }
+.faq details { background:#fff; border:1px solid var(--linea); border-radius:var(--radio-chico); padding:14px 18px; margin-bottom:10px; }
+.faq summary { cursor:pointer; font-weight:700; }
+.galeria-placeholder > div { min-height:180px; display:grid; place-items:center; border:2px dashed var(--linea); border-radius:var(--radio); color:var(--piedra); background:var(--crema); }
+
+@media (max-width: 720px) {
+  .llamada-ayuda { align-items:flex-start; flex-direction:column; }
+  .nav-enlaces { gap:8px; font-size:.82rem; }
 }

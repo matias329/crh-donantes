@@ -7,6 +7,7 @@
     <p class="parrafo-guia">Consultá tu estado de aptitud y las campañas disponibles en tu zona.</p>
 
     <form class="formulario" method="POST" style="max-width:100%;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="campo">
         <label for="email">Correo electrónico</label>
         <input type="email" id="email" name="email" required autofocus>
@@ -17,6 +18,9 @@
       </div>
       <button type="submit" class="boton boton-primario boton-bloque">Ingresar</button>
       <p class="ayuda" style="text-align:center; margin-top:14px;">
+        <a href="{{ url_for('recuperar_password') }}">¿Olvidaste tu contraseña?</a>
+      </p>
+      <p class="ayuda" style="text-align:center;">
         ¿Todavía no sos donante? <a href="{{ url_for('registro') }}">Registrate</a>
       </p>
       <p class="ayuda" style="text-align:center;">

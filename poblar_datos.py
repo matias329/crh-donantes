@@ -20,7 +20,7 @@ from datetime import date, timedelta
 from werkzeug.security import generate_password_hash
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(APP_DIR, "patients.db")
+DB_PATH = os.environ.get("DB_PATH", os.path.join(APP_DIR, "patients.db"))
 
 BLOOD_GROUPS = ["A", "B", "AB", "O"]
 RH_OPTIONS = ["+", "-"]
@@ -107,9 +107,16 @@ def crear_esquema(conn: sqlite3.Connection) -> None:
                 tipo TEXT NOT NULL,
                 fecha TEXT NOT NULL,
                 ubicacion TEXT NOT NULL,
-                localidad TEXT NOT NULL
+                localidad TEXT NOT NULL,
+                horario TEXT NOT NULL DEFAULT '08:00 a 12:00',
+                publicada INTEGER NOT NULL DEFAULT 1
             );
         """)
+        columnas_campanas = {fila[1] for fila in conn.execute("PRAGMA table_info(campanas)")}
+        if "horario" not in columnas_campanas:
+            conn.execute("ALTER TABLE campanas ADD COLUMN horario TEXT NOT NULL DEFAULT '08:00 a 12:00'")
+        if "publicada" not in columnas_campanas:
+            conn.execute("ALTER TABLE campanas ADD COLUMN publicada INTEGER NOT NULL DEFAULT 1")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS turnos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -280,12 +287,16 @@ def poblar_campanas(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM campanas")
         for titulo, tipo, fecha, ubicacion, localidad in campanas:
             conn.execute(
-                "INSERT INTO campanas (titulo, tipo, fecha, ubicacion, localidad) VALUES (?, ?, ?, ?, ?)",
-                (titulo, tipo, fecha.isoformat(), ubicacion, localidad),
+                "INSERT INTO campanas (titulo, tipo, fecha, ubicacion, localidad, horario, publicada) VALUES (?, ?, ?, ?, ?, ?, 1)",
+                (titulo, tipo, fecha.isoformat(), ubicacion, localidad, "08:00 a 12:00"),
             )
 
 
-def poblar_sistema(cantidad: int = 200, semilla: int = 2026) -> None:
+def poblar_sistema(cantidad: int = 200, semilla: int = 2026, confirmar_borrado: bool = False) -> None:
+    if os.path.exists(DB_PATH) and not confirmar_borrado:
+        raise RuntimeError(
+            f"La base {DB_PATH} ya existe. Para reemplazarla conscientemente usá --confirmar-borrado."
+        )
     rng = random.Random(semilla)
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -306,5 +317,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Poblar CRH Jujuy con datos ficticios.")
     parser.add_argument("--cantidad", type=int, default=200, help="Cantidad de donantes a generar.")
     parser.add_argument("--semilla", type=int, default=2026, help="Semilla para resultados reproducibles.")
+    parser.add_argument("--confirmar-borrado", action="store_true", help="Permite reemplazar datos existentes de la base demo.")
     args = parser.parse_args()
-    poblar_sistema(cantidad=args.cantidad, semilla=args.semilla)
+    poblar_sistema(cantidad=args.cantidad, semilla=args.semilla, confirmar_borrado=args.confirmar_borrado)

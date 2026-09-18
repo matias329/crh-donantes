@@ -16,6 +16,7 @@
       {% endif %}
     </div>
     <p class="motivo" style="color:var(--piedra); margin-top:-14px;">{{ motivo }}</p>
+    <p class="ayuda-estado" title="{{ estados_ayuda.get(estado, '') }}">ⓘ {{ estados_ayuda.get(estado, '') }}</p>
 
     <div class="rejilla rejilla-2" style="align-items:start;">
       <div class="panel">
@@ -37,6 +38,7 @@
       <div class="panel">
         <h3 style="font-size:1rem;">Decisión médica manual</h3>
         <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="update_status">
           <div class="campo">
             <label for="estado_manual">Estado</label>
@@ -56,12 +58,18 @@
         <hr style="border:none; border-top:1px solid var(--linea); margin:22px 0;">
 
         <h3 style="font-size:1rem;">Registrar donación</h3>
+        {% if estado == 'No apto' or estado == 'No Apto Manual' %}
+          <p class="motivo" style="color:var(--rojo, #b3261e); margin-top:0;">
+            ⚠️ No se pueden registrar donaciones: el donante figura como <strong>{{ estado }}</strong>.
+          </p>
+        {% endif %}
         <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="add_donation">
           <div class="campo-fila">
             <div class="campo">
               <label for="fecha_donacion">Fecha</label>
-              <input type="date" id="fecha_donacion" name="fecha_donacion" required>
+              <input type="date" id="fecha_donacion" name="fecha_donacion" max="{{ hoy_iso }}" required>
             </div>
             <div class="campo">
               <label for="volumen_ml">Volumen (ml)</label>
@@ -69,10 +77,15 @@
             </div>
           </div>
           <div class="campo">
-            <label for="observaciones">Observaciones</label>
-            <input type="text" id="observaciones" name="observaciones" placeholder="Sede, colecta externa, etc.">
+            <label for="observaciones">Observaciones de la donación (opcional)</label>
+            <textarea id="observaciones" name="observaciones" rows="2"
+              placeholder="Ej.: sede fija o colecta externa, reacción durante/después de la donación, motivo del volumen extraído, etc."></textarea>
+            <p class="ayuda">Este campo queda asociado a esta donación puntual (no reemplaza las "Observaciones médicas" del donante) y podés editarlo más tarde desde el historial.</p>
           </div>
-          <button type="submit" class="boton boton-secundario">Registrar donación</button>
+          <button type="submit" class="boton boton-secundario"
+            {% if estado == 'No apto' or estado == 'No Apto Manual' %}disabled title="El donante no está habilitado para donar."{% endif %}>
+            Registrar donación
+          </button>
         </form>
       </div>
     </div>
@@ -85,13 +98,30 @@
     {% if historial %}
       <div class="tabla-envoltorio">
         <table>
-          <thead><tr><th>Fecha</th><th>Volumen</th><th>Observaciones</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Volumen</th><th>Observaciones</th><th>Constancia y edición</th></tr></thead>
           <tbody>
             {% for h in historial %}
               <tr>
                 <td>{{ h.fecha_donacion }}</td>
                 <td>{{ h.volumen_ml or "—" }} ml</td>
                 <td>{{ h.observaciones or "—" }}</td>
+                <td style="min-width:220px;">
+                  <a class="boton boton-primario boton-chico" href="{{ url_for('constancia_pdf', donacion_id=h.id) }}">PDF</a>
+                  <details>
+                    <summary class="boton boton-secundario boton-chico" style="display:inline-block; cursor:pointer;">Editar observación</summary>
+                    <form method="POST" style="margin-top:10px;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="action" value="edit_donation_observation">
+                      <input type="hidden" name="donacion_id" value="{{ h.id }}">
+                      <div class="campo" style="margin-bottom:8px;">
+                        <label for="observaciones_donacion_{{ h.id }}">Observación de la donación del {{ h.fecha_donacion }}</label>
+                        <textarea id="observaciones_donacion_{{ h.id }}" name="observaciones_donacion" rows="2"
+                          placeholder="Sede, colecta externa, reacción, etc.">{{ h.observaciones or '' }}</textarea>
+                      </div>
+                      <button type="submit" class="boton boton-primario boton-chico">Guardar observación</button>
+                    </form>
+                  </details>
+                </td>
               </tr>
             {% endfor %}
           </tbody>

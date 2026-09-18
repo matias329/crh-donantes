@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}Cómo donar sangre · CRH Jujuy{% endblock %}
+{% block contenido %}
+<section class="hero hero-corto"><div class="envoltorio"><span class="tipo">Guía del donante</span><h1>Donar sangre es un proceso simple, seguro y solidario.</h1><p class="parrafo-guia">Esta guía es orientativa. La entrevista profesional previa determina si cada persona puede donar ese día.</p></div></section>
+<section class="seccion"><div class="envoltorio">
+  <div class="seccion-titulo"><h2>El proceso, paso a paso</h2></div>
+  <div class="rejilla rejilla-3 pasos"><article class="panel"><b>1</b><h3>Registro</h3><p>Presentás tu documento y completás la información requerida.</p></article><article class="panel"><b>2</b><h3>Entrevista</h3><p>El equipo profesional evalúa tu estado de salud de manera confidencial.</p></article><article class="panel"><b>3</b><h3>Donación y recuperación</h3><p>Se utiliza material descartable y luego recibís una colación e indicaciones.</p></article></div>
+</div></section>
+<section class="seccion seccion-suave"><div class="envoltorio"><div class="seccion-titulo"><h2>Preguntas frecuentes</h2></div>
+  <div class="faq"><details><summary>¿Tengo que estar en ayunas?</summary><p>No. Se recomienda haber descansado y consumir líquidos; seguí siempre las indicaciones del centro.</p></details><details><summary>¿La donación es segura?</summary><p>Se realiza con material descartable y bajo supervisión del equipo de salud.</p></details><details><summary>¿El estado del portal confirma que puedo donar?</summary><p>No. Es una preclasificación orientativa; la aptitud definitiva se determina en la entrevista profesional.</p></details><details><summary>¿Dónde consulto requisitos oficiales?</summary><p>Consultá la información vigente del Ministerio de Salud y confirmá cualquier duda con Hemoterapia.</p></details></div>
+  <div class="acciones-form"><a class="boton boton-primario" href="https://www.argentina.gob.ar/salud/donarsangre" target="_blank" rel="noopener">Fuente oficial: Ministerio de Salud</a><a class="boton boton-whatsapp" href="{{ whatsapp_consultas_url }}" target="_blank" rel="noopener">Consultar por WhatsApp</a></div>
+</div></section>
+<section class="seccion"><div class="envoltorio"><div class="seccion-titulo"><h2>Colectas del Centro</h2><p>Galería preparada para incorporar fotografías institucionales autorizadas.</p></div><div class="rejilla rejilla-3 galeria-placeholder"><div>Foto de colecta 1</div><div>Foto de colecta 2</div><div>Foto de colecta 3</div></div><p class="ayuda">Reemplazá estos espacios con imágenes propias en <code>static/img/colectas/</code>, verificando autorización de uso de imagen.</p></div></section>
+{% endblock %}

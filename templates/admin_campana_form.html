@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}{{ modo }} campaña · CRH Jujuy{% endblock %}
+{% block nav_clase %}pestana-admin{% endblock %}
+{% block contenido %}
+<section class="seccion"><div class="envoltorio ancho-form">
+  <p><a href="{{ url_for('admin_dashboard') }}">&larr; Volver al panel</a></p>
+  <div class="seccion-titulo"><h1>{{ modo }} campaña</h1><p>Completá los datos y elegí si queda publicada o como borrador.</p></div>
+  <form class="panel formulario" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="campo"><label for="titulo">Título</label><input id="titulo" name="titulo" maxlength="150" value="{{ campana.titulo or '' }}" required></div>
+    <div class="campo-fila">
+      <div class="campo"><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha" value="{{ campana.fecha or '' }}" required></div>
+      <div class="campo"><label for="horario">Horario</label><input id="horario" name="horario" placeholder="08:00 a 12:00" pattern="[0-9]{2}:[0-9]{2} a [0-9]{2}:[0-9]{2}" value="{{ campana.horario or '' }}" required></div>
+    </div>
+    <div class="campo"><label for="ubicacion">Dirección</label><input id="ubicacion" name="ubicacion" maxlength="180" value="{{ campana.ubicacion or '' }}" required></div>
+    <div class="campo"><label for="localidad">Localidad</label><select id="localidad" name="localidad" required>{% for l in localidades %}<option value="{{ l }}" {% if campana.localidad == l %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <label class="check"><input type="checkbox" name="publicada" value="1" {% if campana.publicada is not defined or campana.publicada %}checked{% endif %}> Publicar campaña y mostrarla a los donantes</label>
+    <div class="acciones-form"><button class="boton boton-primario" type="submit">Guardar campaña</button><a class="boton boton-secundario" href="{{ url_for('admin_dashboard') }}">Cancelar</a></div>
+  </form>
+</div></section>
+{% endblock %}

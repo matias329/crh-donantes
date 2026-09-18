@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}Estadísticas · CRH Jujuy{% endblock %}
+{% block nav_clase %}pestana-admin{% endblock %}
+{% block contenido %}
+<section class="seccion"><div class="envoltorio">
+  <p><a href="{{ url_for('admin_dashboard') }}">&larr; Volver al panel</a></p>
+  <div class="seccion-titulo"><h1>Estadísticas de donantes</h1><p>Distribución actual de la base registrada.</p></div>
+  <div class="kpi"><strong>{{ total }}</strong><span>Total de donantes</span></div>
+  <div class="rejilla rejilla-2 graficos">
+    <article class="panel"><h2>Por localidad</h2>{% for x in localidades %}<div class="barra-fila"><div><span>{{ x.etiqueta }}</span><strong>{{ x.cantidad }}</strong></div><div class="barra"><i style="width:{{ (x.cantidad * 100 / max_localidad)|round }}%"></i></div></div>{% else %}<p>Sin datos.</p>{% endfor %}</article>
+    <article class="panel"><h2>Por grupo y factor Rh</h2>{% for x in grupos %}<div class="barra-fila"><div><span>{{ x.etiqueta }}</span><strong>{{ x.cantidad }}</strong></div><div class="barra"><i class="barra-rh" style="width:{{ (x.cantidad * 100 / max_grupo)|round }}%"></i></div></div>{% else %}<p>Sin datos.</p>{% endfor %}</article>
+  </div>
+</div></section>
+{% endblock %}

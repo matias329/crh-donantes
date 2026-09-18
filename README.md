@@ -10,6 +10,14 @@ personal del centro.
 
 ## Qué trae esta versión
 
+- CRUD administrativo de campañas con publicación/borrador, fecha, horario,
+  dirección y localidad.
+- Estadísticas de donantes por localidad y grupo/factor sanguíneo.
+- Constancias PDF descargables desde cada donación registrada.
+- Preparación de mensajes individuales de WhatsApp filtrados por grupo y Rh.
+- Ayuda contextual para estados del donante y sección pública informativa.
+- Consultas públicas por WhatsApp dirigidas al +54 9 388 755-7004.
+
 - **Diseño propio de punta a punta**: se crearon todas las plantillas
   (`templates/`) y la hoja de estilos (`static/css/estilo.css`), ya que el
   proyecto original no incluía ninguna vista. Paleta cálida vino/crema,
@@ -63,6 +71,8 @@ python app.py
 
 Abrí en el navegador: http://127.0.0.1:5000
 
+Para ejecutar las pruebas: `python -m unittest -v test_app.py`.
+
 **Contraseña de demo** para cualquiera de los 200 donantes generados:
 `donante123` (el usuario/email de cada uno está en la base — podés
 consultarlos desde el panel administrativo).
@@ -77,22 +87,33 @@ python poblar_datos.py --cantidad 300 --semilla 7
 
 URL: `/admin/login`
 
-Por defecto: usuario `admin@crh.com` / contraseña `admin123`.
-Se recomienda sobreescribirlos con variables de entorno antes de desplegar:
+En desarrollo existe una cuenta de demostración. En producción la aplicación
+no inicia si detecta las credenciales predeterminadas o una clave de sesión
+insegura. Configurá las variables de entorno antes de desplegar:
 
 ```bash
 export ADMIN_USER="tu_usuario"
 export ADMIN_PASSWORD="una_clave_segura"
 export FLASK_SECRET_KEY="una_clave_larga_y_aleatoria"
+export APP_ENV="production"
 ```
 
 ## Deploy (Render / Railway / Fly.io)
 
 1. Subí el proyecto a GitHub.
 2. **Build Command:** `pip install -r requirements.txt`
-3. **Start Command:** `python seed_db.py && gunicorn app:app`
-4. Configurá las variables de entorno `ADMIN_USER`, `ADMIN_PASSWORD` y
+3. Para una demo nueva y vacía, ejecutá `python seed_db.py` una sola vez.
+   Nunca agregues la siembra de datos al comando de inicio de producción.
+4. **Start Command:** `gunicorn --workers 2 --threads 4 --timeout 60 app:app`
+5. Configurá las variables de entorno `ADMIN_USER`, `ADMIN_PASSWORD` y
    `FLASK_SECRET_KEY` desde el panel del proveedor.
+
+Si la base ya existe, el generador se detiene para proteger los datos. Solo en
+una demo descartable puede forzarse el reemplazo con `--confirmar-borrado`.
+
+> Antes de usar datos reales, validá las reglas clínicas, la política de
+> privacidad, los permisos por rol y la infraestructura con las autoridades
+> sanitarias y legales correspondientes.
 
 ## Estructura del proyecto
 

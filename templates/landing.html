@@ -44,13 +44,21 @@
             <span class="tipo">{{ c.tipo }}</span>
             <div class="fecha">{{ c.fecha_legible }}</div>
             <h3 style="font-size:1.05rem;">{{ c.titulo }}</h3>
-            <p style="margin:0; color:var(--piedra); font-size:0.9rem;">{{ c.ubicacion }} · {{ c.localidad }}</p>
+            <p style="margin:0; color:var(--piedra); font-size:0.9rem;">{{ c.horario }} · {{ c.ubicacion }} · {{ c.localidad }}</p>
+            <a class="boton boton-whatsapp boton-chico" target="_blank" rel="noopener" href="{{ c.whatsapp_url }}">Consultar por WhatsApp</a>
           </article>
         {% endfor %}
       </div>
     {% else %}
       <div class="panel centro-vacio">No hay campañas cargadas por el momento.</div>
     {% endif %}
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0;">
+  <div class="envoltorio panel llamada-ayuda">
+    <div><h2>¿Es tu primera donación?</h2><p>Conocé el proceso, resolvé dudas frecuentes y consultá fuentes oficiales.</p></div>
+    <a class="boton boton-primario" href="{{ url_for('informacion') }}">Ver guía para donar</a>
   </div>
 </section>
 

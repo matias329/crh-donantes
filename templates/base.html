@@ -20,12 +20,21 @@
         CRH Jujuy
       </a>
       <div class="nav-enlaces">
+        <a href="{{ url_for('informacion') }}">Cómo donar</a>
         {% if session.get('user_id') %}
           <a href="{{ url_for('perfil_donante') }}">Mi portal</a>
-          <a href="{{ url_for('logout') }}">Salir</a>
+          <form method="POST" action="{{ url_for('logout') }}" class="nav-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="nav-link-button">Salir</button>
+          </form>
         {% elif session.get('admin_logged') %}
           <a href="{{ url_for('admin_dashboard') }}">Panel</a>
-          <a href="{{ url_for('logout') }}">Salir</a>
+          <a href="{{ url_for('admin_estadisticas') }}">Estadísticas</a>
+          <a href="{{ url_for('admin_notificaciones') }}">WhatsApp</a>
+          <form method="POST" action="{{ url_for('logout') }}" class="nav-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="nav-link-button">Salir</button>
+          </form>
         {% else %}
           <a href="{{ url_for('login') }}">Ingresar</a>
           <a class="boton boton-primario boton-chico" href="{{ url_for('registro') }}">Quiero donar</a>
@@ -52,7 +61,7 @@
   <footer class="pie">
     <div class="envoltorio">
       <span>Centro Regional de Hemoterapia · Jujuy</span>
-      <span>Sistema de gestión de donantes — uso interno</span>
+      <span>Consultas: +54 9 388 755-7004 · Sistema de gestión de donantes</span>
     </div>
   </footer>
 

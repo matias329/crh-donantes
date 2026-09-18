@@ -6,28 +6,37 @@
     <h1 style="font-size:1.8rem;">Creá tu ficha de donante</h1>
     <p class="parrafo-guia">Estos datos se usan para calcular tu estado clínico y avisarte de campañas en tu localidad.</p>
 
+    {% if dni_duplicado %}
+      <div class="panel panel-chico" style="border-color:var(--alerta); background:var(--alerta-suave); margin-bottom:20px;">
+        <strong>Este DNI ya está registrado.</strong>
+        <p style="margin:6px 0 12px;">Si esta ficha es tuya, no hace falta crear una nueva cuenta.</p>
+        <a class="boton boton-primario boton-chico" href="{{ url_for('recuperar_password') }}">Recuperar contraseña</a>
+      </div>
+    {% endif %}
+
     <form class="formulario" method="POST" style="max-width:100%;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="campo-fila">
         <div class="campo">
           <label for="dni">DNI</label>
-          <input type="text" id="dni" name="dni" inputmode="numeric" pattern="[0-9]{7,8}" required>
+          <input type="text" id="dni" name="dni" inputmode="numeric" pattern="[0-9]{7,8}" value="{{ valores.dni or '' }}" required>
         </div>
         <div class="campo">
           <label for="nombre">Nombre y apellido</label>
-          <input type="text" id="nombre" name="nombre" required>
+          <input type="text" id="nombre" name="nombre" value="{{ valores.nombre or '' }}" required>
         </div>
       </div>
 
       <div class="campo-fila">
         <div class="campo">
           <label for="fecha_nacimiento">Fecha de nacimiento</label>
-          <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" required>
+          <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" value="{{ valores.fecha_nacimiento or '' }}" required>
         </div>
         <div class="campo">
           <label for="genero">Género</label>
           <select id="genero" name="genero" required>
-            <option value="M">Masculino</option>
-            <option value="F">Femenino</option>
+            <option value="M" {% if valores.genero == 'M' %}selected{% endif %}>Masculino</option>
+            <option value="F" {% if valores.genero == 'F' %}selected{% endif %}>Femenino</option>
           </select>
         </div>
       </div>
@@ -36,13 +45,13 @@
         <div class="campo">
           <label for="grupo_sanguineo">Grupo sanguíneo</label>
           <select id="grupo_sanguineo" name="grupo_sanguineo" required>
-            {% for g in blood_groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+            {% for g in blood_groups %}<option value="{{ g }}" {% if valores.grupo_sanguineo == g %}selected{% endif %}>{{ g }}</option>{% endfor %}
           </select>
         </div>
         <div class="campo">
           <label for="factor_rh">Factor RH</label>
           <select id="factor_rh" name="factor_rh" required>
-            {% for r in rh_options %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+            {% for r in rh_options %}<option value="{{ r }}" {% if valores.factor_rh == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
           </select>
         </div>
       </div>
@@ -50,40 +59,40 @@
       <div class="campo">
         <label for="localidad">Localidad</label>
         <select id="localidad" name="localidad" required>
-          {% for l in localidades %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+          {% for l in localidades %}<option value="{{ l }}" {% if valores.localidad == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
         </select>
       </div>
 
       <div class="campo-fila">
         <div class="campo">
           <label for="email">Correo electrónico</label>
-          <input type="email" id="email" name="email" required>
+          <input type="email" id="email" name="email" value="{{ valores.email or '' }}" required>
         </div>
         <div class="campo">
           <label for="telefono">Teléfono</label>
-          <input type="tel" id="telefono" name="telefono">
+          <input type="tel" id="telefono" name="telefono" value="{{ valores.telefono or '' }}">
         </div>
       </div>
 
       <div class="campo">
         <label for="password">Contraseña</label>
-        <input type="password" id="password" name="password" minlength="6" required>
+        <input type="password" id="password" name="password" minlength="10" required>
       </div>
 
       <div class="campo-fila">
         <div class="campo">
           <label for="fecha_ultimo_tatuaje">Último tatuaje (si aplica)</label>
-          <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje">
+          <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje" value="{{ valores.fecha_ultimo_tatuaje or '' }}">
         </div>
         <div class="campo">
           <label for="fecha_ultimo_piercing">Último piercing (si aplica)</label>
-          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing">
+          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing" value="{{ valores.fecha_ultimo_piercing or '' }}">
         </div>
       </div>
 
       <div class="campo">
         <label class="check-linea">
-          <input type="checkbox" name="toma_medicacion" value="1">
+          <input type="checkbox" name="toma_medicacion" value="1" {% if valores.toma_medicacion %}checked{% endif %}>
           Actualmente tomo medicación de forma habitual
         </label>
       </div>

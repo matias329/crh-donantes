@@ -11,4 +11,4 @@ Uso:
 from poblar_datos import poblar_sistema
 
 if __name__ == "__main__":
-    poblar_sistema(cantidad=200, semilla=2026)
+    poblar_sistema(cantidad=200, semilla=2026, confirmar_borrado=False)
