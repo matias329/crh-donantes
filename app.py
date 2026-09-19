@@ -32,6 +32,10 @@ APP_DIR = os.path.abspath(os.path.dirname(__file__))
 # persistente (p. ej. en Render/Heroku) y evitar que la base se pierda
 # cada vez que el proceso se reinicia o se redeploya la app.
 DB_PATH = os.environ.get("DB_PATH", os.path.join(APP_DIR, "patients.db"))
+PERSISTENCIA_ADVERTENCIA = (
+    os.environ.get("APP_ENV", "development").lower() == "production"
+    and not os.path.abspath(DB_PATH).startswith("/var/data/")
+)
 
 # Tiempo de validez (en segundos) del enlace de recuperación de contraseña.
 RESET_TOKEN_MAX_AGE = 60 * 60  # 1 hora
@@ -261,9 +265,13 @@ def init_db_if_missing() -> None:
                     donante_id INTEGER NOT NULL,
                     fecha_donacion TEXT NOT NULL,
                     volumen_ml INTEGER,
-                    observaciones TEXT
+                    observaciones TEXT,
+                    lugar TEXT NOT NULL DEFAULT 'Centro Regional de Hemoterapia de Jujuy'
                 );
             """)
+            columnas_donaciones = {fila[1] for fila in conn.execute("PRAGMA table_info(donaciones)")}
+            if "lugar" not in columnas_donaciones:
+                conn.execute("ALTER TABLE donaciones ADD COLUMN lugar TEXT NOT NULL DEFAULT 'Centro Regional de Hemoterapia de Jujuy'")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS campanas (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -719,13 +727,6 @@ def perfil_donante():
         c,
         whatsapp_url=f"https://wa.me/{WHATSAPP_CONSULTAS}?text={quote('Hola, quisiera consultar sobre la campaña ' + c['titulo'] + ' del ' + fecha_legible(c['fecha']) + '.')}"
     ) for c in campanas]
-    turnos = db.execute(
-        """SELECT t.hora, c.titulo FROM turnos t
-           JOIN campanas c ON t.campana_id = c.id
-           WHERE t.donante_id = ?""",
-        (donante["id"],),
-    ).fetchall()
-
     return render_template(
         "portal_donante.html",
         donante=donante,
@@ -734,7 +735,6 @@ def perfil_donante():
         motivo=motivo,
         campanas=campanas,
         historial=historial,
-        turnos=turnos,
         estados_ayuda=ESTADOS_AYUDA,
     )
 
@@ -779,6 +779,7 @@ def constancia_pdf(donacion_id):
         ["DNI", donacion["dni"]],
         ["Grupo sanguíneo", f"{donacion['grupo_sanguineo']}{donacion['factor_rh']}"],
         ["Fecha de donación", fecha_legible(donacion["fecha_donacion"])],
+        ["Lugar de donación", donacion["lugar"] or "Centro Regional de Hemoterapia de Jujuy"],
         ["Volumen registrado", f"{donacion['volumen_ml']} ml" if donacion["volumen_ml"] else "No informado"],
         ["Código de constancia", f"CRH-{donacion['id']:08d}"],
     ]
@@ -892,34 +893,7 @@ def editar_perfil():
 
 @app.route("/reservar-turno", methods=["POST"])
 def reservar_turno():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    db = get_db()
-    donante = db.execute("SELECT * FROM donantes WHERE id = ?", (session["user_id"],)).fetchone()
-    campana_id = request.form.get("campana_id", type=int)
-    hora = request.form.get("hora", "").strip()
-    campana = db.execute("SELECT * FROM campanas WHERE id = ?", (campana_id,)).fetchone()
-    historial = obtener_historial(donante["id"]) if donante else []
-    ultima = historial[0]["fecha_donacion"] if historial else None
-    estado, _ = calcular_elegibilidad(donante, ultima, historial) if donante else ("No apto", "")
-    if (not donante or not campana or not campana["publicada"] or campana["fecha"] < datetime.now().date().isoformat()
-            or campana["localidad"] != donante["localidad"] or estado not in ("Apto", "Apto Manual")
-            or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", hora)):
-        flash("No fue posible reservar ese turno. Verificá campaña, fecha, localidad, horario y aptitud.", "danger")
-        return redirect(url_for("perfil_donante"))
-    ocupado = db.execute("SELECT 1 FROM turnos WHERE campana_id = ? AND hora = ?", (campana_id, hora)).fetchone()
-    if ocupado:
-        flash("Ese horario ya fue reservado. Elegí otro.", "warning")
-        return redirect(url_for("perfil_donante"))
-    try:
-        db.execute(
-            "INSERT INTO turnos (donante_id, campana_id, hora) VALUES (?, ?, ?)",
-            (session["user_id"], campana_id, hora),
-        )
-        db.commit()
-        flash("Turno reservado con éxito.", "success")
-    except sqlite3.IntegrityError:
-        flash("Ya tenés un turno reservado en esa campaña.", "warning")
+    flash("La reserva de turnos no está habilitada. Consultá directamente al Centro.", "warning")
     return redirect(url_for("perfil_donante"))
 
 
@@ -960,6 +934,7 @@ def admin_dashboard():
     localidad = request.args.get("localidad", "").strip()
     edad_min = request.args.get("edad_min", "").strip()
     edad_max = request.args.get("edad_max", "").strip()
+    estado_filtro = request.args.get("estado", "").strip()
     pagina = max(1, request.args.get("pagina", 1, type=int))
 
     condiciones, parametros = [], []
@@ -987,6 +962,8 @@ def admin_dashboard():
         historial = obtener_historial(fila["id"])
         ultima = historial[0]["fecha_donacion"] if historial else None
         estado, _ = calcular_elegibilidad(fila, ultima, historial)
+        if estado_filtro and estado != estado_filtro:
+            continue
         resultado.append({**dict(fila), "edad": edad, "estado_calculado": estado})
 
     total = len(resultado)
@@ -1006,8 +983,10 @@ def admin_dashboard():
         total_paginas=total_paginas,
         blood_groups=BLOOD_GROUPS,
         localidades=LOCALIDADES,
-        filtros_activos=bool(q or grupo or localidad or edad_min or edad_max),
+        filtros_activos=bool(q or grupo or localidad or edad_min or edad_max or estado_filtro),
+        estado_filtro=estado_filtro,
         estados_ayuda=ESTADOS_AYUDA,
+        persistencia_advertencia=PERSISTENCIA_ADVERTENCIA,
     )
 
 
@@ -1184,11 +1163,14 @@ def admin_detalle_paciente(id):
             flash("Estado actualizado.", "success")
         elif action == "add_donation":
             fecha_nueva = request.form.get("fecha_donacion", "").strip()
+            lugar = request.form.get("lugar", "").strip()
             historial_actual = obtener_historial(id)
 
             # --- Validaciones críticas antes de registrar la donación ---
             valido, motivo_bloqueo = validar_nueva_donacion(d, historial_actual, fecha_nueva)
-            if not valido:
+            if not lugar:
+                flash("El lugar de la donación es obligatorio.", "danger")
+            elif not valido:
                 flash(motivo_bloqueo, "danger")
             else:
                 volumen = request.form.get("volumen_ml", type=int)
@@ -1196,8 +1178,8 @@ def admin_detalle_paciente(id):
                     flash("El volumen debe estar entre 100 y 600 ml.", "danger")
                     return redirect(url_for("admin_detalle_paciente", id=id))
                 db.execute(
-                    "INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones) VALUES (?, ?, ?, ?)",
-                    (id, fecha_nueva, volumen, request.form.get("observaciones", "").strip()[:2000]),
+                    "INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones, lugar) VALUES (?, ?, ?, ?, ?)",
+                    (id, fecha_nueva, volumen, request.form.get("observaciones", "").strip()[:2000], lugar[:180]),
                 )
                 db.execute("UPDATE donantes SET estado_manual = 'Automatico' WHERE id = ?", (id,))
                 db.commit()

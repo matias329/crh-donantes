@@ -16,6 +16,10 @@ personal del centro.
 - Constancias PDF descargables desde cada donación registrada.
 - Preparación de mensajes individuales de WhatsApp filtrados por grupo y Rh.
 - Ayuda contextual para estados del donante y sección pública informativa.
+- Galería institucional con las tres fotografías proporcionadas.
+- Reserva de turnos retirada; las consultas se canalizan directamente al CRH.
+- Filtro administrativo por estado del donante.
+- Constancia PDF con nombre, DNI, fecha y lugar de donación.
 - Consultas públicas por WhatsApp dirigidas al +54 9 388 755-7004.
 - Filtros de WhatsApp por nombre/DNI, zona, localidad, grupo y factor Rh.
 - Preselección automática por edad, peso, embarazo, medicación declarada,
@@ -102,6 +106,15 @@ export APP_ENV="production"
 ```
 
 ## Deploy (Render / Railway / Fly.io)
+
+### Persistencia obligatoria en Render
+
+SQLite debe ubicarse en un disco persistente. El proyecto incluye `render.yaml`
+con un disco montado en `/var/data` y `DB_PATH=/var/data/patients.db`. Si el
+servicio ya fue creado manualmente, configurá esos dos elementos en Render o
+los registros y campañas se perderán al reiniciar o desplegar. Un disco
+persistente puede requerir un plan pago; como alternativa de producción debe
+migrarse la base a PostgreSQL.
 
 1. Subí el proyecto a GitHub.
 2. **Build Command:** `pip install -r requirements.txt`

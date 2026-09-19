@@ -4,6 +4,7 @@
 {% block contenido %}
 <section class="seccion" style="padding-top:24px;">
   <div class="envoltorio">
+    {% if persistencia_advertencia %}<div class="mensaje mensaje-danger"><strong>Base no persistente:</strong> configurá en Render un disco en <code>/var/data</code> y la variable <code>DB_PATH=/var/data/patients.db</code>. Hasta hacerlo, los registros pueden perderse al reiniciar.</div>{% endif %}
     <div class="seccion-titulo">
       <h1 style="font-size:1.6rem;">Donantes registrados</h1>
       <p>{{ total }} en total{% if filtros_activos %} · {{ donantes|length }} en esta página tras filtrar{% endif %}</p>
@@ -40,6 +41,13 @@
       <div class="campo">
         <label for="edad_max">Edad máx.</label>
         <input type="number" id="edad_max" name="edad_max" value="{{ request.args.get('edad_max', '') }}" min="0">
+      </div>
+      <div class="campo">
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado">
+          <option value="">Todos</option>
+          {% for e in ['Apto', 'Apto Manual', 'En espera', 'No apto', 'No Apto Manual'] %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+        </select>
       </div>
       <button type="submit" class="boton boton-primario">Filtrar</button>
       {% if filtros_activos %}<a class="boton boton-secundario" href="{{ url_for('admin_dashboard') }}">Limpiar</a>{% endif %}
@@ -84,7 +92,7 @@
       <div class="paginacion">
         {% for p in range(1, total_paginas + 1) %}
           <a class="boton {% if p == pagina %}boton-primario{% else %}boton-secundario{% endif %} boton-chico"
-             href="{{ url_for('admin_dashboard', pagina=p, q=request.args.get('q',''), grupo=request.args.get('grupo',''), localidad=request.args.get('localidad',''), edad_min=request.args.get('edad_min',''), edad_max=request.args.get('edad_max','')) }}">{{ p }}</a>
+             href="{{ url_for('admin_dashboard', pagina=p, q=request.args.get('q',''), grupo=request.args.get('grupo',''), localidad=request.args.get('localidad',''), edad_min=request.args.get('edad_min',''), edad_max=request.args.get('edad_max',''), estado=request.args.get('estado','')) }}">{{ p }}</a>
         {% endfor %}
       </div>
     {% endif %}

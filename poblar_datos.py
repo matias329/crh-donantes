@@ -104,9 +104,13 @@ def crear_esquema(conn: sqlite3.Connection) -> None:
                 donante_id INTEGER NOT NULL,
                 fecha_donacion TEXT NOT NULL,
                 volumen_ml INTEGER,
-                observaciones TEXT
+                observaciones TEXT,
+                lugar TEXT NOT NULL DEFAULT 'Centro Regional de Hemoterapia de Jujuy'
             );
         """)
+        columnas_donaciones = {fila[1] for fila in conn.execute("PRAGMA table_info(donaciones)")}
+        if "lugar" not in columnas_donaciones:
+            conn.execute("ALTER TABLE donaciones ADD COLUMN lugar TEXT NOT NULL DEFAULT 'Centro Regional de Hemoterapia de Jujuy'")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS campanas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -273,9 +277,9 @@ def poblar_donaciones(conn: sqlite3.Connection, donantes: list[tuple[int, str]],
                 dias_atras = rng.randint(130, 500)  # ya pasó la ventana -> "Apto"
             fecha = (hoy - timedelta(days=dias_atras)).isoformat()
             conn.execute(
-                """INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones)
-                   VALUES (?, ?, ?, ?)""",
-                (donante_id, fecha, rng.choice([420, 450, 460, 470]), "Donación registrada en campaña CRH"),
+                """INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones, lugar)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (donante_id, fecha, rng.choice([420, 450, 460, 470]), "Donación registrada en campaña CRH", "Centro Regional de Hemoterapia de Jujuy"),
             )
 
 

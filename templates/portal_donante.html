@@ -30,19 +30,6 @@
         </dl>
       </div>
 
-      <div class="panel">
-        <h3 style="font-size:1.05rem;">Mis turnos reservados</h3>
-        {% if turnos %}
-          <ul style="padding-left:18px; margin:0;">
-            {% for t in turnos %}
-              <li>{{ t.titulo }} — {{ t.hora }}</li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="ayuda" style="margin:0;">Todavía no reservaste turnos.</p>
-        {% endif %}
-      </div>
-
     </div>
   </div>
 </section>
@@ -51,7 +38,7 @@
   <div class="envoltorio">
     <div class="seccion-titulo">
       <h2>Campañas en {{ donante.localidad }}</h2>
-      <p>Reservá tu turno si tu estado es apto.</p>
+      <p>Consultá directamente al Centro para conocer modalidades y horarios.</p>
     </div>
     {% if campanas %}
       <div class="rejilla rejilla-3">
@@ -62,17 +49,6 @@
             <h3 style="font-size:1.05rem;">{{ c.titulo }}</h3>
             <p style="margin:0 0 14px; color:var(--piedra); font-size:0.9rem;">{{ c.ubicacion }}</p>
             <a class="boton boton-whatsapp boton-chico boton-bloque" target="_blank" rel="noopener" href="{{ c.whatsapp_url }}">Consultar al Centro</a>
-            <form method="POST" action="{{ url_for('reservar_turno') }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="campana_id" value="{{ c.id }}">
-              <div class="campo" style="margin-bottom:10px;">
-                <input type="time" name="hora" required {% if estado not in ['Apto', 'Apto Manual'] %}disabled{% endif %}>
-              </div>
-              <button type="submit" class="boton boton-secundario boton-chico boton-bloque"
-                {% if estado not in ['Apto', 'Apto Manual'] %}disabled title="Tu estado actual no permite reservar"{% endif %}>
-                Reservar turno
-              </button>
-            </form>
           </article>
         {% endfor %}
       </div>
@@ -90,11 +66,12 @@
     {% if historial %}
       <div class="tabla-envoltorio">
         <table>
-          <thead><tr><th>Fecha</th><th>Volumen</th><th>Observaciones</th><th>Constancia</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Lugar</th><th>Volumen</th><th>Observaciones</th><th>Constancia</th></tr></thead>
           <tbody>
             {% for h in historial %}
               <tr>
                 <td>{{ h.fecha_donacion }}</td>
+                <td>{{ h.lugar or "Centro Regional de Hemoterapia de Jujuy" }}</td>
                 <td>{{ h.volumen_ml or "—" }} ml</td>
                 <td>{{ h.observaciones or "—" }}</td>
                 <td><a class="boton boton-secundario boton-chico" href="{{ url_for('constancia_pdf', donacion_id=h.id) }}">Descargar PDF</a></td>

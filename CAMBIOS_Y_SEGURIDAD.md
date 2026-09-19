@@ -11,6 +11,11 @@ Esta copia conserva todos los archivos del proyecto original e incorpora:
 - exclusión automática de notificaciones para personas no aptas o en espera;
 - peso y embarazo incorporados a la preselección;
 - intervalo mínimo de 60 días y control del máximo anual publicado por Nación;
+- reserva de turnos retirada según feedback;
+- galería reemplazada por fotografías institucionales recibidas;
+- campo `lugar` agregado a donaciones y constancias PDF;
+- filtro administrativo por estado;
+- configuración `render.yaml` con disco persistente para evitar pérdida de datos;
 
 - protección CSRF en todos los formularios;
 - cierre de sesión mediante POST;

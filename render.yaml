@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: crh-jujuy
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --threads 4 --timeout 60 app:app
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/patients.db
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: crh-data
+      mountPath: /var/data
+      sizeGB: 1
