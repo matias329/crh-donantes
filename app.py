@@ -7,6 +7,7 @@ import re
 import secrets
 import smtplib
 import sqlite3
+from database import DATABASE_URL, DATABASE_URL_UNPOOLED, PostgresConnection, init_postgres, IntegrityError, OperationalError
 import time
 from io import BytesIO
 from urllib.parse import quote
@@ -33,6 +34,7 @@ APP_DIR = os.path.abspath(os.path.dirname(__file__))
 # cada vez que el proceso se reinicia o se redeploya la app.
 DB_PATH = os.environ.get("DB_PATH", os.path.join(APP_DIR, "patients.db"))
 PERSISTENCIA_ADVERTENCIA = (
+    not DATABASE_URL and
     os.environ.get("APP_ENV", "development").lower() == "production"
     and not os.path.abspath(DB_PATH).startswith("/var/data/")
 )
@@ -84,7 +86,7 @@ DONANTES_POR_PAGINA = 15
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin@crh.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
-APP_ENV = os.environ.get("APP_ENV", "development").lower()
+APP_ENV = os.environ.get("APP_ENV", "production" if os.environ.get("RENDER") else "development").lower()
 ALLOW_DEMO_RESET_LINK = os.environ.get("ALLOW_DEMO_RESET_LINK", "false").lower() == "true"
 WHATSAPP_CONSULTAS = re.sub(r"\D", "", os.environ.get("WHATSAPP_CONSULTAS", "+54 9 388 755-7004"))
 
@@ -98,9 +100,9 @@ app.config.update(
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
 )
 
-if APP_ENV == "production" and os.environ.get("RENDER") and not os.path.ismount("/var/data"):
+if not DATABASE_URL and APP_ENV == "production" and os.environ.get("RENDER") and not os.path.ismount("/var/data"):
     raise RuntimeError("Falta el disco persistente /var/data en Render. No se inicia para evitar pérdida de registros.")
-if APP_ENV == "production" and os.environ.get("RENDER") and not os.path.abspath(DB_PATH).startswith("/var/data/"):
+if not DATABASE_URL and APP_ENV == "production" and os.environ.get("RENDER") and not os.path.abspath(DB_PATH).startswith("/var/data/"):
     raise RuntimeError("DB_PATH debe apuntar a /var/data/patients.db en Render.")
 os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
 
@@ -174,6 +176,8 @@ def _configurar_conexion(conn: sqlite3.Connection) -> None:
 
 
 def get_db() -> sqlite3.Connection:
+    if "db" not in g and DATABASE_URL:
+        g.db = PostgresConnection()
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH, timeout=10)
         g.db.row_factory = sqlite3.Row
@@ -234,6 +238,9 @@ def enviar_email_recuperacion(destinatario: str, reset_url: str) -> bool:
 
 
 def init_db_if_missing() -> None:
+    if DATABASE_URL:
+        init_postgres()
+        return
     conn = sqlite3.connect(DB_PATH, timeout=10)
     try:
         _configurar_conexion(conn)
@@ -651,9 +658,9 @@ def registro():
                         flash("Registro exitoso. Ya podés iniciar sesión.", "success")
                         return redirect(url_for("login"))
                     flash("No pudimos confirmar el registro. Por favor, intentá nuevamente.", "danger")
-                except sqlite3.IntegrityError:
+                except IntegrityError:
                     flash("Error: el DNI o el correo ya están registrados.", "warning")
-                except sqlite3.OperationalError:
+                except OperationalError:
                     app.logger.exception("Error operacional de SQLite al registrar un donante.")
                     flash(
                         "El sistema está ocupado en este momento. Por favor, "
@@ -681,7 +688,7 @@ def login():
             return render_template("login.html"), 429
         try:
             res = get_db().execute("SELECT * FROM donantes WHERE lower(email) = ?", (email,)).fetchone()
-        except sqlite3.OperationalError:
+        except OperationalError:
             app.logger.exception("Error operacional de SQLite al iniciar sesión.")
             flash("El sistema está ocupado en este momento. Probá nuevamente en unos segundos.", "danger")
             return render_template("login.html")
@@ -953,9 +960,9 @@ def editar_perfil():
                 session["user_name"] = nombre
                 flash("Tus datos se actualizaron correctamente.", "success")
                 return redirect(url_for("perfil_donante"))
-            except sqlite3.IntegrityError:
+            except IntegrityError:
                 flash("Ese correo electrónico ya está en uso por otra cuenta.", "warning")
-            except sqlite3.OperationalError:
+            except OperationalError:
                 app.logger.exception("Error operacional de SQLite al editar el perfil.")
                 flash("El sistema está ocupado en este momento. Probá nuevamente en unos segundos.", "danger")
 
@@ -1115,12 +1122,15 @@ def enviar_avisos():
     if not SMTP_HOST:
         print("SMTP no configurado. Los avisos permanecen pendientes.")
         return
-    db = get_db()
+    db = PostgresConnection(DATABASE_URL_UNPOOLED) if DATABASE_URL else get_db()
     # Un trabajador por vez, incluso con ejecuciones programadas superpuestas.
     import fcntl
-    with open(DB_PATH + ".avisos.lock", "a") as bloqueo:
+    with open(os.path.join(APP_DIR, ".avisos.lock"), "a") as bloqueo:
         try: fcntl.flock(bloqueo, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError: return
+        if DATABASE_URL:
+            bloqueado = db.raw.execute("SELECT pg_try_advisory_lock(742614272) AS adquirido").fetchone()["adquirido"]
+            if not bloqueado: return
         pendientes = db.execute("SELECT campana_id,donante_id FROM avisos_campana WHERE enviado=0").fetchall()
         for aviso in pendientes:
             c = db.execute("SELECT * FROM campanas WHERE id=?", (aviso["campana_id"],)).fetchone()
@@ -1141,7 +1151,7 @@ def enviar_avisos():
                     servidor.starttls()
                     if SMTP_USER and SMTP_PASSWORD: servidor.login(SMTP_USER, SMTP_PASSWORD)
                     servidor.sendmail(SMTP_FROM, [d["email"]], m.as_string())
-                db.execute("UPDATE avisos_campana SET enviado=1 WHERE campana_id=? AND donante_id=?", tuple(aviso))
+                db.execute("UPDATE avisos_campana SET enviado=1 WHERE campana_id=? AND donante_id=?", (aviso["campana_id"], aviso["donante_id"]))
                 db.commit()
             except (smtplib.SMTPException, OSError):
                 app.logger.exception("Aviso pendiente: fallo SMTP.")
