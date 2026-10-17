@@ -19,11 +19,13 @@
       <div class="campo-fila">
         <div class="campo">
           <label for="dni">DNI</label>
-          <input type="text" id="dni" name="dni" inputmode="numeric" pattern="[0-9]{7,8}" value="{{ valores.dni or '' }}" required>
+          <input type="text" id="dni" name="dni" inputmode="numeric" pattern="[0-9]{7,8}" minlength="7" maxlength="8" value="{{ valores.dni or '' }}" required>
         </div>
         <div class="campo">
-          <label for="nombre">Nombre y apellido</label>
-          <input type="text" id="nombre" name="nombre" value="{{ valores.nombre or '' }}" required>
+          <label for="apellido">Apellido</label>
+          <input id="apellido" name="apellido" value="{{ valores.apellido or '' }}" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ ]+" required>
+          <label for="nombres">Nombres</label>
+          <input id="nombres" name="nombres" value="{{ valores.nombres or '' }}" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ ]+" required>
         </div>
       </div>
 
@@ -43,8 +45,8 @@
 
       <div class="campo">
         <label for="peso_kg">Peso actual (kg)</label>
-        <input type="number" id="peso_kg" name="peso_kg" min="30" max="250" step="0.1" value="{{ valores.peso_kg or '' }}" required>
-        <p class="ayuda">La preclasificación general requiere más de 50 kg.</p>
+        <input type="number" id="peso_kg" name="peso_kg" min="50" max="140" step="1" value="{{ valores.peso_kg or '' }}" required>
+        <p class="ayuda">Registro: entre 50 y 140 kg. La aptitud la confirma el equipo profesional.</p>
       </div>
 
       <div class="campo-fila">
@@ -76,7 +78,7 @@
         </div>
         <div class="campo">
           <label for="telefono">Teléfono</label>
-          <input type="tel" id="telefono" name="telefono" value="{{ valores.telefono or '' }}">
+          <input type="tel" id="telefono" name="telefono" inputmode="numeric" pattern="[1-9][0-9]{9}" minlength="10" maxlength="10" placeholder="3881234567 · sin 0 ni 15" required value="{{ valores.telefono or '' }}">
         </div>
       </div>
 
@@ -87,13 +89,10 @@
 
       <div class="campo-fila">
         <div class="campo">
-          <label for="fecha_ultimo_tatuaje">Último tatuaje (si aplica)</label>
+          <label for="fecha_ultimo_tatuaje">Último tatuaje o piercing (la fecha más reciente)</label>
           <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje" value="{{ valores.fecha_ultimo_tatuaje or '' }}">
         </div>
-        <div class="campo">
-          <label for="fecha_ultimo_piercing">Último piercing (si aplica)</label>
-          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing" value="{{ valores.fecha_ultimo_piercing or '' }}">
-        </div>
+
       </div>
 
       <div class="campo">

@@ -1,3 +1,7 @@
+# Versión 2.6 · Feedback 17 de octubre
+
+Leer primero `LEER_PRIMERO_2_6.md`. Las notas de esa versión prevalecen sobre este historial.
+
 # CRH Jujuy · Sistema de Gestión de Donantes
 
 Aplicación **Python + Flask + SQLite** para el Centro Regional de Hemoteratoria

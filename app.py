@@ -65,12 +65,12 @@ ZONAS = {
 }
 
 ESTADOS_AYUDA = {
-    "Automatico": "Estado evaluado automáticamente según edad, antecedentes declarados y última donación.",
-    "Apto": "Preclasificación automática favorable. La aptitud definitiva la confirma el equipo profesional.",
-    "Apto Manual": "Un profesional registró manualmente una condición favorable.",
-    "No apto": "La evaluación automática detectó una condición que requiere espera o revisión profesional.",
-    "No Apto Manual": "Un profesional indicó que la persona no está habilitada hasta una nueva evaluación.",
-    "En espera": "Todavía no se cumplió el intervalo requerido desde la última donación.",
+    "Automatico": "Sin decisión clínica: el sistema calcula Apto Temporal, No Apto Temporal o En espera. No es un estado adicional.",
+    "Apto Temporal": "Preclasificación automática favorable. La aptitud definitiva la confirma el equipo profesional.",
+    "Apto Clínico": "Un profesional registró manualmente una condición favorable.",
+    "No Apto Temporal": "La evaluación automática detectó una condición que requiere espera o revisión profesional.",
+    "No Apto Clínico": "Un profesional indicó que la persona no está habilitada hasta una nueva evaluación.",
+    "En espera": "Todavía no se cumplieron 60 días desde la última donación o se alcanzó el máximo anual.",
 }
 
 # Preselección basada en criterios nacionales publicados. La aptitud final
@@ -97,6 +97,12 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
 )
+
+if APP_ENV == "production" and os.environ.get("RENDER") and not os.path.ismount("/var/data"):
+    raise RuntimeError("Falta el disco persistente /var/data en Render. No se inicia para evitar pérdida de registros.")
+if APP_ENV == "production" and os.environ.get("RENDER") and not os.path.abspath(DB_PATH).startswith("/var/data/"):
+    raise RuntimeError("DB_PATH debe apuntar a /var/data/patients.db en Render.")
+os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
 
 if APP_ENV == "production":
     if app.config["SECRET_KEY"] == "dev-secret-key-sanitario-crh":
@@ -296,6 +302,24 @@ def init_db_if_missing() -> None:
                     UNIQUE(donante_id, campana_id)
                 );
             """)
+            for campo in ("apellido", "nombres"):
+                if campo not in columnas_donantes:
+                    conn.execute(f"ALTER TABLE donantes ADD COLUMN {campo} TEXT NOT NULL DEFAULT ''")
+            conn.execute("UPDATE donantes SET estado_manual='Apto Clínico' WHERE estado_manual='Apto Manual'")
+            conn.execute("UPDATE donantes SET estado_manual='No Apto Clínico' WHERE estado_manual='No Apto Manual'")
+            # Conserva el antecedente más reciente; no descarta piercings anteriores.
+            conn.execute("""UPDATE donantes SET fecha_ultimo_tatuaje = fecha_ultimo_piercing
+                            WHERE fecha_ultimo_piercing IS NOT NULL AND
+                            (fecha_ultimo_tatuaje IS NULL OR fecha_ultimo_piercing > fecha_ultimo_tatuaje)""")
+            conn.execute("UPDATE donantes SET fecha_ultimo_piercing=NULL")
+            for campo, tipo in (("campana_id", "INTEGER"), ("grupo_extraccion", "TEXT"),
+                                ("rh_extraccion", "TEXT"), ("localidad_extraccion", "TEXT")):
+                if campo not in columnas_donaciones:
+                    conn.execute(f"ALTER TABLE donaciones ADD COLUMN {campo} {tipo}")
+            conn.execute("""CREATE TABLE IF NOT EXISTS avisos_campana (
+                campana_id INTEGER NOT NULL, donante_id INTEGER NOT NULL,
+                enviado INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(campana_id, donante_id))""")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_donaciones_donante_fecha ON donaciones(donante_id, fecha_donacion)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_turnos_campana_hora ON turnos(campana_id, hora)")
     finally:
@@ -321,24 +345,41 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
     Si hay una decisión médica manual cargada, esa decisión tiene prioridad
     sobre el cálculo automático.
     """
-    if donante["estado_manual"] != "Automatico":
-        return donante["estado_manual"], donante["observaciones_medicas"] or "Decisión médica manual."
+    if donante["estado_manual"] == "No Apto Clínico":
+        return "No Apto Clínico", donante["observaciones_medicas"] or "Decisión profesional desfavorable."
+    # La espera entre donaciones también se aplica a la aprobación clínica.
+    if donante["estado_manual"] == "Apto Clínico":
+        copia = dict(donante)
+        copia["estado_manual"] = "Automatico"
+        calculado, motivo = calcular_elegibilidad(copia, ultima_donacion_str, historial)
+        if calculado == "En espera":
+            return calculado, motivo
+        # Comprobar intervalo aun cuando otra condición automática aparezca primero.
+        if ultima_donacion_str:
+            regreso = datetime.strptime(ultima_donacion_str, "%Y-%m-%d").date() + timedelta(days=60)
+            if datetime.now().date() < regreso:
+                return "En espera", f"Próxima fecha habilitada: {regreso.strftime('%d/%m/%Y')}."
+        if historial:
+            recientes = sum(x["fecha_donacion"] >= (datetime.now().date()-timedelta(days=365)).isoformat() for x in historial)
+            if recientes >= MAX_DONACIONES_ANUALES.get(donante["genero"], 3):
+                return "En espera", "Alcanzó el máximo anual de donaciones."
+        return "Apto Clínico", donante["observaciones_medicas"] or "Aprobación registrada por un profesional."
 
     edad = calcular_edad(donante["fecha_nacimiento"])
     if edad is None:
-        return "No apto", "Fecha de nacimiento inválida."
+        return "No Apto Temporal", "Fecha de nacimiento inválida."
     if edad < EDAD_MINIMA:
-        return "No apto", "Menor de 18 años: requiere autorización y evaluación profesional."
+        return "No Apto Temporal", "Menor de 18 años: requiere autorización y evaluación profesional."
     if edad > EDAD_MAXIMA:
-        return "No apto", "Mayor de 65 años: requiere certificado médico y evaluación profesional."
+        return "No Apto Temporal", "Mayor de 65 años: requiere certificado médico y evaluación profesional."
 
     peso = donante["peso_kg"] if "peso_kg" in donante.keys() else None
     if peso is None:
-        return "No apto", "Falta registrar el peso para completar la preclasificación."
+        return "No Apto Temporal", "Falta registrar el peso para completar la preclasificación."
     if peso <= 50:
-        return "No apto", "El requisito general es pesar más de 50 kg."
+        return "No Apto Temporal", "El requisito general es pesar más de 50 kg."
     if "embarazo" in donante.keys() and donante["embarazo"]:
-        return "No apto", "El embarazo impide donar según los criterios generales de preselección."
+        return "No Apto Temporal", "El embarazo impide donar según los criterios generales de preselección."
 
     hoy = datetime.now().date()
     for campo in ("fecha_ultimo_tatuaje", "fecha_ultimo_piercing"):
@@ -349,11 +390,15 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
             fecha = datetime.strptime(valor, "%Y-%m-%d").date()
         except ValueError:
             continue
-        if (hoy - fecha).days < 365:
-            return "No apto", "Inhabilitación temporal: debe esperar 12 meses desde su último tatuaje/piercing."
+        try:
+            fecha_habilitada = fecha.replace(year=fecha.year + 1)
+        except ValueError:  # 29 de febrero
+            fecha_habilitada = fecha.replace(year=fecha.year + 1, day=28)
+        if hoy < fecha_habilitada:
+            return "No Apto Temporal", "Inhabilitación temporal: debe esperar 12 meses desde su último tatuaje/piercing."
 
     if donante["toma_medicacion"]:
-        return "No apto", "La medicación declarada requiere evaluación profesional antes de donar."
+        return "No Apto Temporal", "La medicación declarada requiere evaluación profesional antes de donar."
 
     if historial:
         limite = datetime.now().date() - timedelta(days=365)
@@ -379,7 +424,7 @@ def calcular_elegibilidad(donante: sqlite3.Row, ultima_donacion_str: Optional[st
         except ValueError:
             pass
 
-    return "Apto", "Cumple la preselección automática; la aptitud final se confirma en la entrevista profesional."
+    return "Apto Temporal", "Cumple la preselección automática; la aptitud final se confirma en la entrevista profesional."
 
 
 def obtener_historial(donante_id: int) -> list[sqlite3.Row]:
@@ -399,10 +444,10 @@ def validar_nueva_donacion(
     Devuelve (True, "") si se puede registrar, o (False, motivo) si debe
     bloquearse. Se aplican, en orden:
 
-      1) Estado "No Apto Manual" cargado por un profesional: bloquea siempre,
+      1) Estado "No Apto Clínico" cargado por un profesional: bloquea siempre,
          sin excepciones, hasta que se revierta esa decisión.
       2) Elegibilidad clínica automática vigente (edad, tatuaje/piercing
-         reciente, medicación): si hoy el donante figura "No apto", se
+         reciente, medicación): si hoy el donante figura "No Apto Temporal", se
          bloquea el registro de la donación.
       3) Fecha de la donación: debe ser una fecha válida y no futura.
       4) Ventana sanitaria mínima entre donaciones (VENTANA_DIAS, según
@@ -411,9 +456,9 @@ def validar_nueva_donacion(
          días consecutivos o antes de cumplirse el plazo mínimo.
     """
     # 1) Decisión médica manual explícita: tiene prioridad y bloquea siempre.
-    if donante["estado_manual"] == "No Apto Manual":
+    if donante["estado_manual"] == "No Apto Clínico":
         return False, (
-            "El donante está marcado como 'No Apto Manual'. No se pueden "
+            "El donante está marcado como 'No Apto Clínico'. No se pueden "
             "registrar donaciones hasta que se actualice esa decisión."
         )
 
@@ -421,7 +466,7 @@ def validar_nueva_donacion(
     # cargada, sino del estado actual del donante).
     ultima_str_actual = historial[0]["fecha_donacion"] if historial else None
     estado_actual, motivo_actual = calcular_elegibilidad(donante, ultima_str_actual, historial)
-    if estado_actual == "No apto":
+    if estado_actual in ("No Apto Temporal", "En espera") :
         return False, f"El donante no está apto para donar: {motivo_actual}"
 
     # 3) Validamos que la fecha de la nueva donación sea correcta.
@@ -498,6 +543,33 @@ def informacion():
     return render_template("informacion.html", whatsapp_consultas_url=f"https://wa.me/{WHATSAPP_CONSULTAS}?text={mensaje}")
 
 
+def validar_antecedentes(form):
+    errores = []
+    peso = form.get("peso_kg", "").strip()
+    if not re.fullmatch(r"[0-9]{2,3}", peso) or not 50 <= int(peso) <= 140:
+        errores.append("El peso debe ser entero, entre 50 y 140 kg, hasta 3 cifras.")
+    fecha = form.get("fecha_ultimo_tatuaje", "").strip()
+    if fecha:
+        try:
+            if datetime.strptime(fecha, "%Y-%m-%d").date() > datetime.now().date():
+                errores.append("El último tatuaje o piercing no puede ser futuro.")
+        except ValueError:
+            errores.append("La fecha de tatuaje o piercing no es válida.")
+    return errores
+
+
+def validar_nombre(valor):
+    return bool(valor and len(valor) <= 60 and all(c.isalpha() or c == " " for c in valor))
+
+
+def validar_telefono(valor):
+    return bool(re.fullmatch(r"[1-9][0-9]{9}", valor))
+
+
+def campanas_activas():
+    return get_db().execute("SELECT * FROM campanas WHERE publicada=1 AND fecha>=? ORDER BY fecha", (datetime.now().date().isoformat(),)).fetchall()
+
+
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     dni_duplicado = False
@@ -506,12 +578,14 @@ def registro():
         dni = request.form.get("dni", "").strip()
         email = request.form.get("email", "").strip().lower()
         f_tat = request.form.get("fecha_ultimo_tatuaje") or None
-        f_pier = request.form.get("fecha_ultimo_piercing") or None
+        f_pier = None
         toma_medicacion = 1 if request.form.get("toma_medicacion") else 0
         embarazo = 1 if request.form.get("embarazo") else 0
         peso = request.form.get("peso_kg", type=float)
 
-        nombre = request.form.get("nombre", "").strip()
+        apellido = request.form.get("apellido", "").strip()
+        nombres = request.form.get("nombres", "").strip()
+        nombre = f"{apellido}, {nombres}"
         password = request.form.get("password", "")
         fecha_nacimiento = request.form.get("fecha_nacimiento", "")
         genero = request.form.get("genero", "")
@@ -519,13 +593,15 @@ def registro():
         factor = request.form.get("factor_rh", "")
         localidad = request.form.get("localidad", "")
         errores = []
-        if not re.fullmatch(r"\d{7,9}", dni): errores.append("El DNI debe contener entre 7 y 9 números.")
-        if not nombre or len(nombre) > 120: errores.append("Ingresá un nombre válido.")
+        if not re.fullmatch(r"[0-9]{7,8}", dni): errores.append("El DNI debe contener 7 u 8 números.")
+        if not validar_nombre(apellido) or not validar_nombre(nombres): errores.append("Apellido y nombres solo admiten letras y espacios.")
+        if not validar_telefono(request.form.get("telefono", "")): errores.append("Ingresá código de área sin 0 y número sin 15: 10 cifras en total.")
+        errores.extend(validar_antecedentes(request.form))
         if calcular_edad(fecha_nacimiento) is None: errores.append("La fecha de nacimiento no es válida.")
         if genero not in GENDERS: errores.append("El género seleccionado no es válido.")
         if grupo not in BLOOD_GROUPS or factor not in RH_OPTIONS: errores.append("El grupo sanguíneo no es válido.")
         if localidad not in LOCALIDADES: errores.append("La localidad seleccionada no es válida.")
-        if peso is None or not 30 <= peso <= 250: errores.append("Ingresá un peso válido entre 30 y 250 kg.")
+        
         if embarazo and genero != "F": errores.append("Revisá el dato de embarazo y género seleccionado.")
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email): errores.append("El correo electrónico no es válido.")
         if len(password) < 10: errores.append("La contraseña debe tener al menos 10 caracteres.")
@@ -545,7 +621,7 @@ def registro():
                 "warning",
             )
         else:
-            existente_email = db.execute("SELECT id FROM donantes WHERE email = ?", (email,)).fetchone()
+            existente_email = db.execute("SELECT id FROM donantes WHERE lower(email) = ?", (email,)).fetchone()
             if existente_email:
                 flash("Ese correo electrónico ya está en uso por otra cuenta.", "warning")
             else:
@@ -563,6 +639,7 @@ def registro():
                             f_tat, f_pier, toma_medicacion, peso, embarazo,
                         ),
                     )
+                    db.execute("UPDATE donantes SET apellido=?, nombres=? WHERE dni=?", (apellido, nombres, dni))
                     db.commit()
 
                     # Verificación defensiva: confirmamos que el registro haya
@@ -603,7 +680,7 @@ def login():
             flash("Demasiados intentos. Esperá unos minutos antes de volver a intentar.", "danger")
             return render_template("login.html"), 429
         try:
-            res = get_db().execute("SELECT * FROM donantes WHERE email = ?", (email,)).fetchone()
+            res = get_db().execute("SELECT * FROM donantes WHERE lower(email) = ?", (email,)).fetchone()
         except sqlite3.OperationalError:
             app.logger.exception("Error operacional de SQLite al iniciar sesión.")
             flash("El sistema está ocupado en este momento. Probá nuevamente en unos segundos.", "danger")
@@ -812,12 +889,14 @@ def editar_perfil():
         return redirect(url_for("login"))
 
     if request.method == "POST":
-        nombre = request.form.get("nombre", "").strip()
+        apellido = request.form.get("apellido", "").strip()
+        nombres = request.form.get("nombres", "").strip()
+        nombre = f"{apellido}, {nombres}"
         email = request.form.get("email", "").strip().lower()
         telefono = request.form.get("telefono", "").strip()
         localidad = request.form.get("localidad", "").strip()
         f_tat = request.form.get("fecha_ultimo_tatuaje") or None
-        f_pier = request.form.get("fecha_ultimo_piercing") or None
+        f_pier = None
         toma_medicacion = 1 if request.form.get("toma_medicacion") else 0
         embarazo = 1 if request.form.get("embarazo") else 0
         peso = request.form.get("peso_kg", type=float)
@@ -829,8 +908,11 @@ def editar_perfil():
         errores = []
         if not nombre or not email or not localidad:
             errores.append("Nombre, correo y localidad son obligatorios.")
-        if peso is None or not 30 <= peso <= 250:
-            errores.append("Ingresá un peso válido entre 30 y 250 kg.")
+        errores.extend(validar_antecedentes(request.form))
+        if not validar_nombre(apellido) or not validar_nombre(nombres): errores.append("Apellido y nombres solo admiten letras y espacios.")
+        if not validar_telefono(telefono): errores.append("Teléfono: 10 cifras, código sin 0 y número sin 15.")
+        if localidad not in LOCALIDADES: errores.append("Localidad inválida.")
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email): errores.append("Correo inválido.")
 
         cambia_password = bool(password_nueva or password_confirmar or password_actual)
         if cambia_password:
@@ -866,6 +948,7 @@ def editar_perfil():
                         (nombre, email, telefono, localidad, f_tat, f_pier, toma_medicacion, peso, embarazo,
                          donante["id"]),
                     )
+                db.execute("UPDATE donantes SET apellido=?, nombres=?, estado_manual=CASE WHEN estado_manual='No Apto Clínico' THEN estado_manual ELSE 'Automatico' END WHERE id=?", (apellido, nombres, donante["id"]))
                 db.commit()
                 session["user_name"] = nombre
                 flash("Tus datos se actualizaron correctamente.", "success")
@@ -880,7 +963,7 @@ def editar_perfil():
         # usuario tipeó (excepto contraseñas) para no perder lo ya cargado.
         donante = dict(donante)
         donante.update({
-            "nombre": nombre, "email": email, "telefono": telefono, "localidad": localidad,
+            "apellido": apellido, "nombres": nombres, "nombre": nombre, "email": email, "telefono": telefono, "localidad": localidad,
             "fecha_ultimo_tatuaje": f_tat, "fecha_ultimo_piercing": f_pier,
             "toma_medicacion": toma_medicacion,
             "peso_kg": peso, "embarazo": embarazo,
@@ -1006,19 +1089,62 @@ def validar_campana(formulario):
         if fecha < datetime.now().date(): errores.append("La campaña no puede publicarse con fecha pasada.")
     except ValueError:
         errores.append("La fecha no es válida.")
-    if not re.fullmatch(r"\d{2}:\d{2}\s+a\s+\d{2}:\d{2}", datos["horario"]):
-        errores.append("Usá el formato de horario 08:00 a 12:00.")
-    else:
-        inicio, fin = datos["horario"].split(" a ")
-        try:
-            hora_inicio = datetime.strptime(inicio, "%H:%M")
-            hora_fin = datetime.strptime(fin, "%H:%M")
-            if hora_fin <= hora_inicio: errores.append("El horario de finalización debe ser posterior al inicio.")
-        except ValueError:
-            errores.append("El horario no es válido.")
+    if datos["horario"] not in ("08:00 a 12:00", "14:00 a 18:00"):
+        errores.append("Elegí el horario de 08:00 a 12:00 o de 14:00 a 18:00.")
     if not datos["ubicacion"] or len(datos["ubicacion"]) > 180: errores.append("Ingresá una dirección válida.")
     if datos["localidad"] not in LOCALIDADES: errores.append("La localidad no es válida.")
     return datos, errores
+
+
+def preparar_avisos_campana(campana_id):
+    """Cola idempotente. Nunca envía correos dentro del pedido HTTP."""
+    db = get_db()
+    c = db.execute("SELECT * FROM campanas WHERE id=?", (campana_id,)).fetchone()
+    if not c or not c["publicada"] or c["fecha"] < datetime.now().date().isoformat(): return
+    for d in db.execute("SELECT * FROM donantes WHERE localidad=?", (c["localidad"],)).fetchall():
+        h = obtener_historial(d["id"])
+        estado, _ = calcular_elegibilidad(d, h[0]["fecha_donacion"] if h else None, h)
+        if estado in ("Apto Temporal", "No Apto Temporal", "Apto Clínico"):
+            db.execute("INSERT OR IGNORE INTO avisos_campana(campana_id,donante_id) VALUES (?,?)", (campana_id,d["id"]))
+    db.commit()
+
+
+@app.cli.command("enviar-avisos")
+def enviar_avisos():
+    """Ejecutar periódicamente para procesar avisos pendientes con SMTP."""
+    if not SMTP_HOST:
+        print("SMTP no configurado. Los avisos permanecen pendientes.")
+        return
+    db = get_db()
+    # Un trabajador por vez, incluso con ejecuciones programadas superpuestas.
+    import fcntl
+    with open(DB_PATH + ".avisos.lock", "a") as bloqueo:
+        try: fcntl.flock(bloqueo, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: return
+        pendientes = db.execute("SELECT campana_id,donante_id FROM avisos_campana WHERE enviado=0").fetchall()
+        for aviso in pendientes:
+            c = db.execute("SELECT * FROM campanas WHERE id=?", (aviso["campana_id"],)).fetchone()
+            d = db.execute("SELECT * FROM donantes WHERE id=?", (aviso["donante_id"],)).fetchone()
+            if not c or not d or not c["publicada"] or c["fecha"] < datetime.now().date().isoformat() or c["localidad"] != d["localidad"]: continue
+            h = obtener_historial(d["id"])
+            estado, _ = calcular_elegibilidad(d, h[0]["fecha_donacion"] if h else None, h)
+            if estado not in ("Apto Temporal", "No Apto Temporal", "Apto Clínico"): continue
+            cuerpo = (f"Información del CRH Jujuy: {c['titulo']}, {fecha_legible(c['fecha'])}, "
+                      f"{c['horario']}, {c['ubicacion']} ({c['localidad']}).\n\n"
+                      "Este aviso informa una campaña y no confirma aptitud para donar. "
+                      "Si tenés una restricción temporal, consultá al equipo antes de asistir.")
+            m = MIMEText(cuerpo, "plain", "utf-8")
+            m["Subject"] = "Nueva campaña · CRH Jujuy"
+            m["From"], m["To"] = SMTP_FROM, d["email"]
+            try:
+                with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as servidor:
+                    servidor.starttls()
+                    if SMTP_USER and SMTP_PASSWORD: servidor.login(SMTP_USER, SMTP_PASSWORD)
+                    servidor.sendmail(SMTP_FROM, [d["email"]], m.as_string())
+                db.execute("UPDATE avisos_campana SET enviado=1 WHERE campana_id=? AND donante_id=?", tuple(aviso))
+                db.commit()
+            except (smtplib.SMTPException, OSError):
+                app.logger.exception("Aviso pendiente: fallo SMTP.")
 
 
 @app.route("/admin/campanas/nueva", methods=["GET", "POST"])
@@ -1029,11 +1155,12 @@ def admin_campana_nueva():
         datos, errores = validar_campana(request.form)
         if not errores:
             db = get_db()
-            db.execute("""INSERT INTO campanas (titulo, tipo, fecha, horario, ubicacion, localidad, publicada)
+            nueva = db.execute("""INSERT INTO campanas (titulo, tipo, fecha, horario, ubicacion, localidad, publicada)
                           VALUES (?, 'Colecta de Sangre', ?, ?, ?, ?, ?)""",
                        (datos["titulo"], datos["fecha"], datos["horario"], datos["ubicacion"], datos["localidad"], datos["publicada"]))
+            preparar_avisos_campana(nueva.lastrowid)
             db.commit()
-            flash("Campaña creada correctamente.", "success")
+            flash("Campaña creada. Avisos informativos en cola si está publicada.", "success")
             return redirect(url_for("admin_dashboard"))
         for error in errores: flash(error, "warning")
     return render_template("admin_campana_form.html", campana=valores, localidades=LOCALIDADES, modo="Crear")
@@ -1050,6 +1177,8 @@ def admin_campana_editar(campana_id):
         if not errores:
             db.execute("""UPDATE campanas SET titulo=?, fecha=?, horario=?, ubicacion=?, localidad=?, publicada=?
                           WHERE id=?""", (datos["titulo"], datos["fecha"], datos["horario"], datos["ubicacion"], datos["localidad"], datos["publicada"], campana_id))
+            if not campana["publicada"] and datos["publicada"]:
+                preparar_avisos_campana(campana_id)
             db.commit()
             flash("Campaña actualizada.", "success")
             return redirect(url_for("admin_dashboard"))
@@ -1081,10 +1210,20 @@ def admin_estadisticas():
     localidades = db.execute("SELECT localidad etiqueta, COUNT(*) cantidad FROM donantes GROUP BY localidad ORDER BY cantidad DESC").fetchall()
     grupos = db.execute("""SELECT grupo_sanguineo || factor_rh etiqueta, COUNT(*) cantidad
                            FROM donantes GROUP BY grupo_sanguineo, factor_rh ORDER BY cantidad DESC""").fetchall()
+    extracciones = []
+    consultas = [
+        ("Extracciones por mes", "substr(x.fecha_donacion,1,7)", ""),
+        ("Extracciones por grupo y factor", "coalesce(x.grupo_extraccion,d.grupo_sanguineo) || coalesce(x.rh_extraccion,d.factor_rh)", ""),
+        ("Extracciones por campaña / lugar", "coalesce(c.titulo,x.lugar)", "LEFT JOIN campanas c ON c.id=x.campana_id"),
+        ("Extracciones por localidad del donante", "coalesce(x.localidad_extraccion,d.localidad)", "")]
+    for titulo, expresion, join in consultas:
+        filas = db.execute(f"SELECT {expresion} etiqueta, COUNT(*) cantidad FROM donaciones x JOIN donantes d ON d.id=x.donante_id {join} GROUP BY {expresion} ORDER BY etiqueta").fetchall()
+        extracciones.append((titulo, filas, max([f["cantidad"] for f in filas] or [1])))
+    total_extracciones = db.execute("SELECT COUNT(*) FROM donaciones").fetchone()[0]
     max_localidad = max([x["cantidad"] for x in localidades] or [1])
     max_grupo = max([x["cantidad"] for x in grupos] or [1])
     return render_template("admin_estadisticas.html", total=total, localidades=localidades, grupos=grupos,
-                           max_localidad=max_localidad, max_grupo=max_grupo)
+                           max_localidad=max_localidad, max_grupo=max_grupo, extracciones=extracciones, total_extracciones=total_extracciones)
 
 
 @app.route("/admin/notificaciones")
@@ -1095,11 +1234,17 @@ def admin_notificaciones():
     factor = request.args.get("factor", "").strip()
     localidad = request.args.get("localidad", "").strip()
     zona = request.args.get("zona", "").strip()
-    incluir_no_aptos = request.args.get("incluir_no_aptos") == "1"
+    incluir_no_aptos = False
     campana_id = request.args.get("campana_id", type=int)
     mensaje = request.args.get("mensaje", "").strip()
     db = get_db()
+    campanas = campanas_activas()
+    campana = next((c for c in campanas if c["id"] == campana_id), None)
+    if campana_id and campana is None: abort(400, "Campaña inactiva o inexistente.")
     condiciones, parametros = ["telefono IS NOT NULL", "TRIM(telefono) <> ''"], []
+    if campana:
+        condiciones.append("localidad = ?")
+        parametros.append(campana["localidad"])
     if q: condiciones.append("(nombre LIKE ? OR dni LIKE ?)"); parametros.extend([f"%{q}%", f"%{q}%"])
     if grupo in BLOOD_GROUPS: condiciones.append("grupo_sanguineo = ?"); parametros.append(grupo)
     if factor in RH_OPTIONS: condiciones.append("factor_rh = ?"); parametros.append(factor)
@@ -1109,8 +1254,6 @@ def admin_notificaciones():
         condiciones.append(f"localidad IN ({','.join('?' for _ in lugares)})")
         parametros.extend(lugares)
     donantes = db.execute(f"SELECT * FROM donantes WHERE {' AND '.join(condiciones)} ORDER BY nombre", parametros).fetchall()
-    campanas = db.execute("SELECT * FROM campanas WHERE publicada=1 AND fecha >= date('now') ORDER BY fecha").fetchall()
-    campana = db.execute("SELECT * FROM campanas WHERE id=?", (campana_id,)).fetchone() if campana_id else None
     if not mensaje and campana:
         mensaje = f"Centro Regional de Hemoterapia de Jujuy: te invitamos a {campana['titulo']} el {fecha_legible(campana['fecha'])}, {campana['horario']}, en {campana['ubicacion']} ({campana['localidad']})."
     filas = []
@@ -1119,7 +1262,7 @@ def admin_notificaciones():
         historial = obtener_historial(d["id"])
         ultima = historial[0]["fecha_donacion"] if historial else None
         estado, motivo = calcular_elegibilidad(d, ultima, historial)
-        if estado not in ("Apto", "Apto Manual") and not incluir_no_aptos:
+        if estado not in ("Apto Temporal", "Apto Clínico") and not incluir_no_aptos:
             descartados += 1
             continue
         telefono = re.sub(r"\D", "", d["telefono"] or "")
@@ -1150,9 +1293,26 @@ def admin_detalle_paciente(id):
 
     if request.method == "POST":
         action = request.form.get("action")
-        if action == "update_status":
+        if action == "update_donor":
+            errores = validar_antecedentes(request.form)
+            grupo = request.form.get("grupo_sanguineo")
+            factor = request.form.get("factor_rh")
+            if grupo not in BLOOD_GROUPS or factor not in RH_OPTIONS:
+                errores.append("Grupo o factor inválido.")
+            if errores:
+                for error in errores: flash(error, "warning")
+            else:
+                db.execute("""UPDATE donantes SET peso_kg=?, embarazo=?, toma_medicacion=?,
+                    fecha_ultimo_tatuaje=?, fecha_ultimo_piercing=NULL,
+                    grupo_sanguineo=?, factor_rh=?, estado_manual=CASE WHEN estado_manual='No Apto Clínico' THEN estado_manual ELSE 'Automatico' END WHERE id=?""",
+                    (int(request.form["peso_kg"]), int(bool(request.form.get("embarazo"))),
+                     int(bool(request.form.get("toma_medicacion"))), request.form.get("fecha_ultimo_tatuaje") or None,
+                     grupo, factor, id))
+                db.commit()
+                flash("Ficha actualizada. Revisá la decisión clínica con los nuevos antecedentes.", "success")
+        elif action == "update_status":
             estado_solicitado = request.form.get("estado_manual")
-            if estado_solicitado not in ("Automatico", "Apto Manual", "No Apto Manual"):
+            if estado_solicitado not in ("Automatico", "Apto Clínico", "No Apto Clínico"):
                 flash("El estado solicitado no es válido.", "danger")
                 return redirect(url_for("admin_detalle_paciente", id=id))
             db.execute(
@@ -1163,7 +1323,20 @@ def admin_detalle_paciente(id):
             flash("Estado actualizado.", "success")
         elif action == "add_donation":
             fecha_nueva = request.form.get("fecha_donacion", "").strip()
-            lugar = request.form.get("lugar", "").strip()
+            seleccion = request.form.get("lugar", "").strip()
+            campana_id = None
+            lugar = ""
+            if seleccion == "centro": lugar = "Centro Regional de Hemoterapia de Jujuy"
+            elif seleccion == "otro": lugar = request.form.get("otro_lugar", "").strip()[:180]
+            elif seleccion.startswith("campana:"):
+                try: campana_id = int(seleccion.split(":")[1])
+                except ValueError: pass
+                c = next((c for c in campanas_activas() if c["id"] == campana_id), None)
+                if c and c["fecha"] == request.form.get("fecha_donacion"):
+                    lugar = c["titulo"] + " · " + c["ubicacion"]
+                else:
+                    lugar = ""
+
             historial_actual = obtener_historial(id)
 
             # --- Validaciones críticas antes de registrar la donación ---
@@ -1178,8 +1351,10 @@ def admin_detalle_paciente(id):
                     flash("El volumen debe estar entre 100 y 600 ml.", "danger")
                     return redirect(url_for("admin_detalle_paciente", id=id))
                 db.execute(
-                    "INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones, lugar) VALUES (?, ?, ?, ?, ?)",
-                    (id, fecha_nueva, volumen, request.form.get("observaciones", "").strip()[:2000], lugar[:180]),
+                    """INSERT INTO donaciones (donante_id, fecha_donacion, volumen_ml, observaciones, lugar,
+                        campana_id, grupo_extraccion, rh_extraccion, localidad_extraccion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (id, fecha_nueva, volumen, request.form.get("observaciones", "").strip()[:2000], lugar[:180],
+                     campana_id, d["grupo_sanguineo"], d["factor_rh"], d["localidad"]),
                 )
                 db.execute("UPDATE donantes SET estado_manual = 'Automatico' WHERE id = ?", (id,))
                 db.commit()
@@ -1218,7 +1393,7 @@ def admin_detalle_paciente(id):
 
     return render_template(
         "admin_detalle.html", d=d, historial=historial, estado=estado, motivo=motivo,
-        hoy_iso=datetime.now().date().isoformat(), estados_ayuda=ESTADOS_AYUDA,
+        hoy_iso=datetime.now().date().isoformat(), estados_ayuda=ESTADOS_AYUDA, campanas=campanas_activas(), blood_groups=BLOOD_GROUPS, rh_options=RH_OPTIONS,
     )
 
 

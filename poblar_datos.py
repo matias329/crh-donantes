@@ -309,6 +309,8 @@ def poblar_campanas(conn: sqlite3.Connection) -> None:
 
 
 def poblar_sistema(cantidad: int = 200, semilla: int = 2026, confirmar_borrado: bool = False) -> None:
+    if os.environ.get("APP_ENV", "development").lower() == "production":
+        raise RuntimeError("El generador de datos ficticios está deshabilitado en producción.")
     if os.path.exists(DB_PATH) and not confirmar_borrado:
         raise RuntimeError(
             f"La base {DB_PATH} ya existe. Para reemplazarla conscientemente usá --confirmar-borrado."

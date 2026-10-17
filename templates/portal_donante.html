@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block titulo %}Mi portal · CRH Jujuy{% endblock %}
-{% block contenido %}
+{% block contenido %}<section class="seccion"><div class="envoltorio"><div class="panel"><h2>Donación en Centro Regional de Hemoterapia</h2><p><strong>De 7 a 14 hs, sin turno previo.</strong></p><p>Av. Ing. Carlos Snopek esquina Tte. 1° Bolzán, barrio Alto Comedero (al lado del Hospital Snopek), San Salvador de Jujuy.</p></div></div></section>
 <section class="seccion" style="padding-top:24px;">
   <div class="envoltorio">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
@@ -11,7 +11,7 @@
     <div class="rejilla rejilla-2" style="align-items:start;">
 
       <div class="panel tarjeta-estado">
-        {% if estado == 'Apto' or estado == 'Apto Manual' %}
+        {% if estado == 'Apto Temporal' or estado == 'Apto Clínico' %}
           <span class="insignia insignia-apto">{{ estado }}</span>
         {% elif estado == 'En espera' %}
           <span class="insignia insignia-espera">{{ estado }}</span>

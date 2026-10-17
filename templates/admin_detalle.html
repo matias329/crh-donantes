@@ -7,7 +7,7 @@
     <p><a href="{{ url_for('admin_dashboard') }}">&larr; Volver al listado</a></p>
     <div class="seccion-titulo">
       <h1 style="font-size:1.6rem;">{{ d.nombre }}</h1>
-      {% if estado in ['Apto', 'Apto Manual'] %}
+      {% if estado in ['Apto Temporal', 'Apto Clínico'] %}
         <span class="insignia insignia-apto">{{ estado }}</span>
       {% elif estado == 'En espera' %}
         <span class="insignia insignia-espera">{{ estado }}</span>
@@ -29,25 +29,38 @@
           <div><dt>Localidad</dt><dd>{{ d.localidad }}</dd></div>
           <div><dt>Correo</dt><dd>{{ d.email }}</dd></div>
           <div><dt>Teléfono</dt><dd>{{ d.telefono or "—" }}</dd></div>
-          <div><dt>Último tatuaje</dt><dd>{{ d.fecha_ultimo_tatuaje or "—" }}</dd></div>
-          <div><dt>Último piercing</dt><dd>{{ d.fecha_ultimo_piercing or "—" }}</dd></div>
+          <div><dt>Último tatuaje o piercing</dt><dd>{{ d.fecha_ultimo_tatuaje or "—" }}</dd></div>
+
           <div><dt>Medicación</dt><dd>{{ "Sí" if d.toma_medicacion else "No" }}</dd></div>
           <div><dt>Peso</dt><dd>{{ (d.peso_kg ~ ' kg') if d.peso_kg else 'Sin registrar' }}</dd></div>
           <div><dt>Embarazo</dt><dd>{{ "Sí" if d.embarazo else "No" }}</dd></div>
         </dl>
+        <details><summary class="boton boton-secundario">Modificar ficha</summary>
+        <form method="POST" class="formulario">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="update_donor">
+          <label>Peso (kg)<input type="number" name="peso_kg" min="50" max="140" step="1" value="{{ d.peso_kg|int if d.peso_kg else '' }}" required></label>
+          <label>Último tatuaje o piercing<input type="date" name="fecha_ultimo_tatuaje" max="{{ hoy_iso }}" value="{{ d.fecha_ultimo_tatuaje or '' }}"></label>
+          <label><input type="checkbox" name="embarazo" {% if d.embarazo %}checked{% endif %}> Embarazo</label>
+          <label><input type="checkbox" name="toma_medicacion" {% if d.toma_medicacion %}checked{% endif %}> Medicación (requiere revisión profesional)</label>
+          <label>Grupo<select name="grupo_sanguineo">{% for g in blood_groups %}<option {% if d.grupo_sanguineo == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></label>
+          <label>Factor<select name="factor_rh">{% for r in rh_options %}<option {% if d.factor_rh == r %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></label>
+          <p class="ayuda">Al cambiar antecedentes se recalcula la preselección y se retira una aprobación clínica anterior. Una decisión No Apto Clínico se conserva hasta que el profesional la cambie.</p>
+          <button class="boton boton-primario">Guardar ficha</button>
+        </form></details>
       </div>
 
       <div class="panel">
-        <h3 style="font-size:1rem;">Decisión médica manual</h3>
+        <h3 style="font-size:1rem;">Decisión clínica</h3>
         <form method="POST">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="update_status">
           <div class="campo">
             <label for="estado_manual">Estado</label>
             <select id="estado_manual" name="estado_manual">
-              <option value="Automatico" {% if d.estado_manual == 'Automatico' %}selected{% endif %}>Automático (calculado por el sistema)</option>
-              <option value="Apto Manual" {% if d.estado_manual == 'Apto Manual' %}selected{% endif %}>Apto Manual</option>
-              <option value="No Apto Manual" {% if d.estado_manual == 'No Apto Manual' %}selected{% endif %}>No Apto Manual</option>
+              <option value="Automatico" {% if d.estado_manual == 'Automatico' %}selected{% endif %}>Sin decisión clínica · usar preselección temporal</option>
+              <option value="Apto Clínico" {% if d.estado_manual == 'Apto Clínico' %}selected{% endif %}>Apto Clínico</option>
+              <option value="No Apto Clínico" {% if d.estado_manual == 'No Apto Clínico' %}selected{% endif %}>No Apto Clínico</option>
             </select>
           </div>
           <div class="campo">
@@ -60,7 +73,7 @@
         <hr style="border:none; border-top:1px solid var(--linea); margin:22px 0;">
 
         <h3 style="font-size:1rem;">Registrar donación</h3>
-        {% if estado == 'No apto' or estado == 'No Apto Manual' %}
+        {% if estado == 'No Apto Temporal' or estado == 'No Apto Clínico' %}
           <p class="motivo" style="color:var(--rojo, #b3261e); margin-top:0;">
             ⚠️ No se pueden registrar donaciones: el donante figura como <strong>{{ estado }}</strong>.
           </p>
@@ -80,7 +93,13 @@
           </div>
           <div class="campo">
             <label for="lugar">Lugar de la donación</label>
-            <input type="text" id="lugar" name="lugar" maxlength="180" value="Centro Regional de Hemoterapia de Jujuy" required>
+            <select id="lugar" name="lugar" required>
+              <option value="centro">Centro Regional de Hemoterapia</option>
+              {% for c in campanas %}<option value="campana:{{ c.id }}">{{ c.titulo }} · {{ c.fecha }}</option>{% endfor %}
+              <option value="otro">Otro</option>
+            </select>
+            <label for="otro_lugar">Si elegiste Otro, indicá el lugar</label><input id="otro_lugar" name="otro_lugar" maxlength="180">
+            <p class="ayuda">Para una campaña, la fecha de extracción debe coincidir con su fecha.</p>
           </div>
           <div class="campo">
             <label for="observaciones">Observaciones de la donación (opcional)</label>
@@ -89,7 +108,7 @@
             <p class="ayuda">Este campo queda asociado a esta donación puntual (no reemplaza las "Observaciones médicas" del donante) y podés editarlo más tarde desde el historial.</p>
           </div>
           <button type="submit" class="boton boton-secundario"
-            {% if estado == 'No apto' or estado == 'No Apto Manual' %}disabled title="El donante no está habilitado para donar."{% endif %}>
+            {% if estado == 'No Apto Temporal' or estado == 'No Apto Clínico' %}disabled title="El donante no está habilitado para donar."{% endif %}>
             Registrar donación
           </button>
         </form>

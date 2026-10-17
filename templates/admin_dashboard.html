@@ -46,14 +46,14 @@
         <label for="estado">Estado</label>
         <select id="estado" name="estado">
           <option value="">Todos</option>
-          {% for e in ['Apto', 'Apto Manual', 'En espera', 'No apto', 'No Apto Manual'] %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+          {% for e in ['Apto Temporal', 'Apto Clínico', 'En espera', 'No Apto Temporal', 'No Apto Clínico'] %}<option value="{{ e }}" {% if estado_filtro == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
         </select>
       </div>
       <button type="submit" class="boton boton-primario">Filtrar</button>
       {% if filtros_activos %}<a class="boton boton-secundario" href="{{ url_for('admin_dashboard') }}">Limpiar</a>{% endif %}
     </form>
 
-    <details class="panel leyenda-estados"><summary><strong>¿Qué significa cada estado?</strong></summary><div class="rejilla rejilla-2"><p><span class="insignia insignia-apto">Automático</span> {{ estados_ayuda.Automatico }}</p><p><span class="insignia insignia-apto">Apto manual</span> {{ estados_ayuda['Apto Manual'] }}</p><p><span class="insignia insignia-no-apto">No apto manual</span> {{ estados_ayuda['No Apto Manual'] }}</p><p><span class="insignia insignia-espera">En espera</span> {{ estados_ayuda['En espera'] }}</p></div></details>
+    <details class="panel leyenda-estados"><summary><strong>¿Qué significa cada estado?</strong></summary><div class="rejilla rejilla-2"><p><span class="insignia insignia-apto">Preselección temporal</span> {{ estados_ayuda.Automatico }}</p><p><span class="insignia insignia-apto">Apto Clínico</span> {{ estados_ayuda['Apto Clínico'] }}</p><p><span class="insignia insignia-no-apto">No Apto Clínico</span> {{ estados_ayuda['No Apto Clínico'] }}</p><p><span class="insignia insignia-espera">En espera</span> {{ estados_ayuda['En espera'] }}</p></div></details>
 
     <div class="tabla-envoltorio">
       <table>
@@ -71,7 +71,7 @@
               <td>{{ d.grupo_sanguineo }}{{ d.factor_rh }}</td>
               <td>{{ d.localidad }}</td>
               <td>
-                {% if d.estado_calculado in ['Apto', 'Apto Manual'] %}
+                {% if d.estado_calculado in ['Apto Temporal', 'Apto Clínico'] %}
                   <span class="insignia insignia-apto" title="{{ estados_ayuda.get(d.estado_calculado, '') }}">{{ d.estado_calculado }}</span>
                 {% elif d.estado_calculado == 'En espera' %}
                   <span class="insignia insignia-espera" title="{{ estados_ayuda.get(d.estado_calculado, '') }}">{{ d.estado_calculado }}</span>

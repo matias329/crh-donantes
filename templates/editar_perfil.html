@@ -4,6 +4,7 @@
 <section class="seccion" style="padding-top:24px;">
   <div class="envoltorio" style="max-width:720px;">
     <h1 style="font-size:1.8rem;">Editar mi perfil</h1>
+    {% if not donante.apellido or not donante.nombres %}<p class="ayuda">Nombre anterior: {{ donante.nombre }}. Separá apellido y nombres al guardar por primera vez.</p>{% endif %}
     <p class="parrafo-guia">Actualizá tus datos de contacto. El DNI, la fecha de nacimiento, el género y el grupo sanguíneo no se pueden modificar desde acá; si necesitás corregirlos, contactate con el CRH.</p>
 
     <form class="formulario" method="POST" style="max-width:100%;">
@@ -14,8 +15,10 @@
           <input type="text" value="{{ donante.dni }}" disabled>
         </div>
         <div class="campo">
-          <label for="nombre">Nombre y apellido</label>
-          <input type="text" id="nombre" name="nombre" value="{{ donante.nombre }}" required>
+          <label for="apellido">Apellido</label>
+          <input id="apellido" name="apellido" value="{{ donante.apellido or '' }}" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ ]+" required>
+          <label for="nombres">Nombres</label>
+          <input id="nombres" name="nombres" value="{{ donante.nombres or '' }}" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ ]+" required>
         </div>
       </div>
 
@@ -26,7 +29,7 @@
         </div>
         <div class="campo">
           <label for="telefono">Teléfono</label>
-          <input type="tel" id="telefono" name="telefono" value="{{ donante.telefono or '' }}">
+          <input type="tel" id="telefono" name="telefono" inputmode="numeric" pattern="[1-9][0-9]{9}" minlength="10" maxlength="10" placeholder="3881234567 · sin 0 ni 15" required value="{{ donante.telefono or '' }}">
         </div>
       </div>
 
@@ -41,18 +44,15 @@
 
       <div class="campo">
         <label for="peso_kg">Peso actual (kg)</label>
-        <input type="number" id="peso_kg" name="peso_kg" min="30" max="250" step="0.1" value="{{ donante.peso_kg or '' }}" required>
+        <input type="number" id="peso_kg" name="peso_kg" min="50" max="140" step="1" value="{{ (donante.peso_kg|int) if donante.peso_kg else '' }}" required>
       </div>
 
       <div class="campo-fila">
         <div class="campo">
-          <label for="fecha_ultimo_tatuaje">Último tatuaje (si aplica)</label>
+          <label for="fecha_ultimo_tatuaje">Último tatuaje o piercing (la fecha más reciente)</label>
           <input type="date" id="fecha_ultimo_tatuaje" name="fecha_ultimo_tatuaje" value="{{ donante.fecha_ultimo_tatuaje or '' }}">
         </div>
-        <div class="campo">
-          <label for="fecha_ultimo_piercing">Último piercing (si aplica)</label>
-          <input type="date" id="fecha_ultimo_piercing" name="fecha_ultimo_piercing" value="{{ donante.fecha_ultimo_piercing or '' }}">
-        </div>
+
       </div>
 
       <div class="campo">
