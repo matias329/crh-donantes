@@ -1,23 +1,19 @@
 services:
   - type: web
-    name: crh-jujuy
+    name: crh-donantes
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --workers 2 --threads 4 --timeout 60 app:app
     envVars:
-      - key: TZ
-        value: America/Argentina/Jujuy
       - key: APP_ENV
         value: production
-      - key: DB_PATH
-        value: /var/data/patients.db
+      - key: TZ
+        value: America/Argentina/Jujuy
+      - key: DATABASE_URL
+        sync: false
       - key: FLASK_SECRET_KEY
-        generateValue: true
+        sync: false
       - key: ADMIN_USER
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-    disk:
-      name: crh-data
-      mountPath: /var/data
-      sizeGB: 1

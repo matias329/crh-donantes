@@ -18,7 +18,7 @@ NAMES = {'_configurar_conexion', 'init_db_if_missing', 'calcular_edad',
          'calcular_elegibilidad', 'validar_nueva_donacion', 'validar_antecedentes',
          'validar_nombre', 'validar_telefono', 'validar_campana', 'obtener_historial',
          'preparar_avisos_campana', 'admin_estadisticas', 'admin_notificaciones', 'campanas_activas'}
-ENV = dict(sqlite3=sqlite3, datetime=datetime, timedelta=timedelta, Optional=Optional,
+ENV = dict(DATABASE_URL="", sqlite3=sqlite3, datetime=datetime, timedelta=timedelta, Optional=Optional,
            os=os, re=re, BLOOD_GROUPS=['A','B','AB','O','No sé'], RH_OPTIONS=['+','-','No sé'],
            LOCALIDADES=['Perico','Tilcara'], ZONAS={'Valles':['Perico']},
            EDAD_MINIMA=18, EDAD_MAXIMA=65, VENTANA_DIAS={'M':60,'F':60},
